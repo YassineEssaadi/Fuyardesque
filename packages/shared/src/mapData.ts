@@ -3,351 +3,351 @@ import { CityMap, Connection, Station, TransportType } from './types';
 export const STATIONS: Station[] = [
   {
     "id": "st-01",
-    "name": "Central Hub",
-    "district": "Downtown",
+    "name": "Place des Lanternes",
+    "district": "Centre ancien",
     "x": 600,
     "y": 420
   },
   {
     "id": "st-02",
-    "name": "Grand Avenue",
-    "district": "Downtown",
+    "name": "Rue des Arcades",
+    "district": "Centre ancien",
     "x": 540,
     "y": 360
   },
   {
     "id": "st-03",
-    "name": "City Hall",
-    "district": "Downtown",
+    "name": "Parvis des Arts",
+    "district": "Centre ancien",
     "x": 670,
     "y": 360
   },
   {
     "id": "st-04",
-    "name": "Market Hall",
-    "district": "Downtown",
+    "name": "Marché des Tanneurs",
+    "district": "Centre ancien",
     "x": 510,
     "y": 450
   },
   {
     "id": "st-05",
-    "name": "Opera Plaza",
-    "district": "Downtown",
+    "name": "Place du Théâtre",
+    "district": "Centre ancien",
     "x": 690,
     "y": 450
   },
   {
     "id": "st-06",
-    "name": "Cathedral Square",
-    "district": "Downtown",
+    "name": "Passage des Ormes",
+    "district": "Centre ancien",
     "x": 580,
     "y": 490
   },
   {
     "id": "st-07",
-    "name": "Palais de Justice",
-    "district": "Downtown",
+    "name": "Palais des Archives",
+    "district": "Centre ancien",
     "x": 630,
     "y": 510
   },
   {
     "id": "st-08",
-    "name": "Clocktower Gate",
-    "district": "Downtown",
+    "name": "Porte de l'Horloge",
+    "district": "Centre ancien",
     "x": 450,
     "y": 390
   },
   {
     "id": "st-09",
-    "name": "River Boulevard",
-    "district": "Downtown",
+    "name": "Quai des Brumes",
+    "district": "Centre ancien",
     "x": 750,
     "y": 410
   },
   {
     "id": "st-10",
-    "name": "Cyber Tower",
-    "district": "Financial",
+    "name": "Tour des Verrières",
+    "district": "Quartier des affaires",
     "x": 860,
     "y": 270
   },
   {
     "id": "st-11",
-    "name": "Stock Exchange",
-    "district": "Financial",
+    "name": "Bourse des Ateliers",
+    "district": "Quartier des affaires",
     "x": 780,
     "y": 220
   },
   {
     "id": "st-12",
-    "name": "Tech Atrium",
-    "district": "Financial",
+    "name": "Passage des Étoiles",
+    "district": "Quartier des affaires",
     "x": 940,
     "y": 230
   },
   {
     "id": "st-13",
-    "name": "Skybridge Plaza",
-    "district": "Financial",
+    "name": "Place du Belvédère",
+    "district": "Quartier des affaires",
     "x": 880,
     "y": 350
   },
   {
     "id": "st-14",
-    "name": "Marina Bay",
-    "district": "Financial",
+    "name": "Quai des Saules",
+    "district": "Quartier des affaires",
     "x": 990,
     "y": 330
   },
   {
     "id": "st-15",
-    "name": "Bank Junction",
-    "district": "Financial",
+    "name": "Carrefour des Banquiers",
+    "district": "Quartier des affaires",
     "x": 770,
     "y": 310
   },
   {
     "id": "st-16",
-    "name": "Trade Center",
-    "district": "Financial",
+    "name": "Tour du Nord",
+    "district": "Quartier des affaires",
     "x": 850,
     "y": 150
   },
   {
     "id": "st-17",
-    "name": "North Pier",
-    "district": "Financial",
+    "name": "Porte des Peupliers",
+    "district": "Quartier des affaires",
     "x": 960,
     "y": 140
   },
   {
     "id": "st-18",
-    "name": "Maritime Museum",
-    "district": "Old Port",
+    "name": "Musée des Rives",
+    "district": "Rives de l'Est",
     "x": 810,
     "y": 500
   },
   {
     "id": "st-19",
-    "name": "Docklands",
-    "district": "Old Port",
+    "name": "Quai du Levant",
+    "district": "Rives de l'Est",
     "x": 900,
     "y": 480
   },
   {
     "id": "st-20",
-    "name": "Fish Market",
-    "district": "Old Port",
+    "name": "Marché aux Poissons",
+    "district": "Rives de l'Est",
     "x": 870,
     "y": 580
   },
   {
     "id": "st-21",
-    "name": "Canal Lock",
-    "district": "Old Port",
+    "name": "Écluse des Cygnes",
+    "district": "Rives de l'Est",
     "x": 760,
     "y": 610
   },
   {
     "id": "st-22",
-    "name": "Sailors Quay",
-    "district": "Old Port",
+    "name": "Promenade des Voiliers",
+    "district": "Rives de l'Est",
     "x": 970,
     "y": 560
   },
   {
     "id": "st-23",
-    "name": "Lighthouse Point",
-    "district": "Old Port",
+    "name": "Pointe du Phare",
+    "district": "Rives de l'Est",
     "x": 1050,
     "y": 620
   },
   {
     "id": "st-24",
-    "name": "Naval Basin",
-    "district": "Old Port",
+    "name": "Bassin des Mariniers",
+    "district": "Rives de l'Est",
     "x": 920,
     "y": 680
   },
   {
     "id": "st-25",
-    "name": "South Pier",
-    "district": "Old Port",
+    "name": "Quai du Midi",
+    "district": "Rives de l'Est",
     "x": 820,
     "y": 710
   },
   {
     "id": "st-26",
-    "name": "University Campus",
-    "district": "Parklands",
+    "name": "Campus des Sciences",
+    "district": "Jardins du Nord",
     "x": 430,
     "y": 180
   },
   {
     "id": "st-27",
-    "name": "Botanical Garden",
-    "district": "Parklands",
+    "name": "Jardin des Verrières",
+    "district": "Jardins du Nord",
     "x": 530,
     "y": 150
   },
   {
     "id": "st-28",
-    "name": "Museum of Fine Arts",
-    "district": "Parklands",
+    "name": "Galerie des Beaux-Arts",
+    "district": "Jardins du Nord",
     "x": 630,
     "y": 190
   },
   {
     "id": "st-29",
-    "name": "Grand Lake",
-    "district": "Parklands",
+    "name": "Lac des Saules",
+    "district": "Jardins du Nord",
     "x": 510,
     "y": 250
   },
   {
     "id": "st-30",
-    "name": "Rose Pavilion",
-    "district": "Parklands",
+    "name": "Roseraie des Brumes",
+    "district": "Jardins du Nord",
     "x": 380,
     "y": 270
   },
   {
     "id": "st-31",
-    "name": "Belvedere Hill",
-    "district": "Parklands",
+    "name": "Terrasse du Belvédère",
+    "district": "Jardins du Nord",
     "x": 620,
     "y": 100
   },
   {
     "id": "st-32",
-    "name": "Forest Gate",
-    "district": "Parklands",
+    "name": "Porte du Bois",
+    "district": "Jardins du Nord",
     "x": 340,
     "y": 160
   },
   {
     "id": "st-33",
-    "name": "Observatory",
-    "district": "Parklands",
+    "name": "Observatoire des Collines",
+    "district": "Jardins du Nord",
     "x": 460,
     "y": 80
   },
   {
     "id": "st-34",
-    "name": "Central Depot",
-    "district": "Industrial",
+    "name": "Dépôt des Tramways",
+    "district": "Faubourg des ateliers",
     "x": 540,
     "y": 610
   },
   {
     "id": "st-35",
-    "name": "Railyard Junction",
-    "district": "Industrial",
+    "name": "Carrefour des Rails",
+    "district": "Faubourg des ateliers",
     "x": 430,
     "y": 620
   },
   {
     "id": "st-36",
-    "name": "Power Station",
-    "district": "Industrial",
+    "name": "Centrale des Rives",
+    "district": "Faubourg des ateliers",
     "x": 640,
     "y": 660
   },
   {
     "id": "st-37",
-    "name": "Ironworks",
-    "district": "Industrial",
+    "name": "Forges du Faubourg",
+    "district": "Faubourg des ateliers",
     "x": 480,
     "y": 710
   },
   {
     "id": "st-38",
-    "name": "Cargo Bay",
-    "district": "Industrial",
+    "name": "Halle des Marchandises",
+    "district": "Faubourg des ateliers",
     "x": 580,
     "y": 730
   },
   {
     "id": "st-39",
-    "name": "Chemical Refinery",
-    "district": "Industrial",
+    "name": "Ateliers des Teinturiers",
+    "district": "Faubourg des ateliers",
     "x": 360,
     "y": 710
   },
   {
     "id": "st-40",
-    "name": "Container Terminal",
-    "district": "Industrial",
+    "name": "Terminal des Quais",
+    "district": "Faubourg des ateliers",
     "x": 700,
     "y": 740
   },
   {
     "id": "st-41",
-    "name": "Outer Ring Road",
-    "district": "Industrial",
+    "name": "Rocade des Faubourgs",
+    "district": "Faubourg des ateliers",
     "x": 330,
     "y": 590
   },
   {
     "id": "st-42",
-    "name": "High Street",
-    "district": "Residential",
+    "name": "Grande Rue",
+    "district": "Collines de l'Ouest",
     "x": 340,
     "y": 380
   },
   {
     "id": "st-43",
-    "name": "Sunset Terrace",
-    "district": "Residential",
+    "name": "Terrasse du Couchant",
+    "district": "Collines de l'Ouest",
     "x": 230,
     "y": 340
   },
   {
     "id": "st-44",
-    "name": "Pine Hill",
-    "district": "Residential",
+    "name": "Butte des Pins",
+    "district": "Collines de l'Ouest",
     "x": 210,
     "y": 440
   },
   {
     "id": "st-45",
-    "name": "Villa Quarter",
-    "district": "Residential",
+    "name": "Villas du Parc",
+    "district": "Collines de l'Ouest",
     "x": 130,
     "y": 360
   },
   {
     "id": "st-46",
-    "name": "Hilltop Church",
-    "district": "Residential",
+    "name": "Église de la Butte",
+    "district": "Collines de l'Ouest",
     "x": 260,
     "y": 240
   },
   {
     "id": "st-47",
-    "name": "West Vista",
-    "district": "Residential",
+    "name": "Belvédère de l'Ouest",
+    "district": "Collines de l'Ouest",
     "x": 160,
     "y": 230
   },
   {
     "id": "st-48",
-    "name": "Valley Green",
-    "district": "Residential",
+    "name": "Vallon des Jardins",
+    "district": "Collines de l'Ouest",
     "x": 310,
     "y": 480
   },
   {
     "id": "st-49",
-    "name": "Old Viaduct",
-    "district": "Residential",
+    "name": "Viaduc des Brumes",
+    "district": "Collines de l'Ouest",
     "x": 210,
     "y": 540
   },
   {
     "id": "st-50",
-    "name": "Windmill Heights",
-    "district": "Residential",
+    "name": "Moulin des Hauteurs",
+    "district": "Collines de l'Ouest",
     "x": 110,
     "y": 480
   }
@@ -2167,8 +2167,8 @@ export const CONNECTIONS: Connection[] = [
 ];
 
 export const CITY_MAP: CityMap = {
-  id: 'neo-lutece',
-  name: 'Neo-Lutèce',
+  id: 'belle-rive',
+  name: 'Belle-Rive',
   stations: STATIONS,
   connections: CONNECTIONS,
 };

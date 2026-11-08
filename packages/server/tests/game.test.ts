@@ -40,9 +40,10 @@ async function runTests() {
   // Test 1: Map Graph Connectivity
   console.log('[Suite 1: City Map Graph & Transports]');
   assert(STATIONS.length === 50, 'Map has exactly 50 stations');
+  assert(new Set(STATIONS.map((station) => station.name)).size === STATIONS.length, 'Station names are unique');
   
   const st01Conns = getConnectionsFrom('st-01');
-  assert(st01Conns.length > 0, 'Central Hub has valid outgoing connections');
+  assert(st01Conns.length > 0, 'Place des Lanternes has valid outgoing connections');
   
   const taxiValid = isValidMove('st-01', 'st-02', 'taxi');
   assert(taxiValid === true, 'Legal taxi move between st-01 and st-02 is validated');
