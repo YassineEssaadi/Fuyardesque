@@ -6,6 +6,7 @@ import {
   Role,
   RoomSettings,
   SOCKET_EVENTS,
+  STATIONS,
 } from '@fuyardesque/shared';
 import { GameEngine } from '../game/GameEngine';
 import { BotAgent } from '../ai/BotAgent';
@@ -288,8 +289,8 @@ export class Room {
             }
           }
 
-          this.handleBotMoves();
         },
+        onTurnChanged: () => this.handleBotMoves(),
         onGameOver: (engine, winner, reason) => {
           this.io.to(`room_${this.id}`).emit(SOCKET_EVENTS.NOTIFICATION, {
             message: `GAME OVER: ${winner.toUpperCase()}S WIN! (${reason})`,
@@ -314,21 +315,37 @@ export class Room {
     this.gameEngine.start();
     this.broadcastGameState();
 
-    // Trigger initial bot moves
-    this.handleBotMoves();
+    this.handleBotStartingPositions();
 
     return { success: true };
   }
 
+  private handleBotStartingPositions() {
+    if (!this.gameEngine || this.gameEngine.phase !== 'setup') return;
+
+    for (const player of this.players.values()) {
+      if (!player.isAi) continue;
+
+      const selectedStations = new Set(
+        Array.from(this.gameEngine.pendingMoves.values()).map((move) => move.toStationId)
+      );
+      const station = STATIONS.find((candidate) => !selectedStations.has(candidate.id));
+      if (!station) break;
+
+      this.gameEngine.submitMove(player.id, station.id, 'taxi');
+      this.gameEngine.confirmMove(player.id);
+    }
+  }
+
   public handleBotMoves() {
-    if (!this.gameEngine || this.gameEngine.phase !== 'planning') return;
+    if (!this.gameEngine || this.gameEngine.phase !== 'planning' || !this.gameEngine.turnRole) return;
 
     // Give bot decision a slight humanized delay (800ms - 2000ms)
     setTimeout(() => {
-      if (!this.gameEngine || this.gameEngine.phase !== 'planning') return;
+      if (!this.gameEngine || this.gameEngine.phase !== 'planning' || !this.gameEngine.turnRole) return;
 
       for (const player of this.players.values()) {
-        if (player.isAi) {
+        if (player.isAi && player.role === this.gameEngine.turnRole) {
           const clientState = this.gameEngine.getClientState(player.id);
           const decision = BotAgent.makeMove(clientState, player.id);
           if (decision) {

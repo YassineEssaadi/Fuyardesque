@@ -3,7 +3,7 @@ import { RoomSettings, TransportType } from './types';
 export const DEFAULT_SETTINGS: RoomSettings = {
   minPlayers: 2,
   maxPlayers: 8,
-  phaseDuration: 15, // documented default: 15 seconds per simultaneous phase
+  phaseDuration: 30, // 30 seconds for each player's/team's turn
   survivalDuration: 510, // 8 minutes 30 seconds
   extensionDuration: 300, // 5 minutes
   revealInterval: 90, // Reveal every 90 seconds
@@ -11,12 +11,13 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   gameMode: 'mixed',
 };
 
-export const PHASE_DURATION_OPTIONS = [15, 20, 30, 45, 60];
+export const PHASE_DURATION_OPTIONS = [30];
 export const SURVIVAL_DURATION_OPTIONS = [180, 300, 510, 600];
 export const EXTENSION_DURATION_OPTIONS = [120, 180, 300, 600];
 export const REVEAL_INTERVAL_OPTIONS = [30, 60, 90, 120, 180];
 export const REVEAL_DURATION_OPTIONS = [3, 5, 8, 10];
 export const FUGITIVE_LOCATION_REVEAL_INTERVAL = 3;
+export const STARTING_POSITION_DURATION_SECONDS = 30;
 
 export const TRANSPORT_CONFIG: Record<TransportType, { label: string; color: string; bg: string; borderColor: string }> = {
   taxi: {

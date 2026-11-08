@@ -1,7 +1,6 @@
 import {
   ClientGameState,
   ClientPlayerState,
-  Connection,
   FugitivePublicRecord,
   FUGITIVE_LOCATION_REVEAL_INTERVAL,
   GamePhase,
@@ -10,12 +9,10 @@ import {
   Player,
   Role,
   RoomSettings,
-  Station,
+  STARTING_POSITION_DURATION_SECONDS,
   TransportType,
-  getNeighbors,
-  isValidMove,
   STATIONS,
-  getDistance,
+  isValidMove,
 } from '@fuyardesque/shared';
 
 /**
@@ -28,6 +25,7 @@ export const FUGITIVE_DECISION_TIMEOUT_MS = 30_000;
 export interface GameEngineCallbacks {
   onStateUpdate: (engine: GameEngine) => void;
   onPhaseResolved: (engine: GameEngine, phaseNumber: number) => void;
+  onTurnChanged: (engine: GameEngine) => void;
   onGameOver: (engine: GameEngine, winner: Role, reason: string) => void;
   onFugitiveDecisionNeeded: (engine: GameEngine) => void;
   onNotification: (message: string, type?: 'info' | 'warning' | 'alert') => void;
@@ -36,7 +34,8 @@ export interface GameEngineCallbacks {
 export class GameEngine {
   public roomId: string;
   public settings: RoomSettings;
-  public phase: GamePhase = 'planning';
+  public phase: GamePhase = 'setup';
+  public turnRole: Role | null = null;
   public currentPhaseNumber: number = 1;
   public phaseTimeRemaining: number;
   public survivalTimeRemaining: number;
@@ -70,51 +69,28 @@ export class GameEngine {
     this.roomId = roomId;
     this.settings = { ...settings };
     this.callbacks = callbacks;
-    this.phaseTimeRemaining = settings.phaseDuration;
+    this.phaseTimeRemaining = STARTING_POSITION_DURATION_SECONDS;
     this.survivalTimeRemaining = settings.survivalDuration;
     this.nextRevealIn = settings.revealInterval;
 
-    // Initialize players and starting stations
-    this.setupStartingPositions(players);
-  }
-
-  private setupStartingPositions(players: Player[]) {
-    // Select starting station for fugitive
-    // Fugitive starts somewhere central or interesting
-    const fugitive = players.find((p) => p.role === 'fugitive');
-    const pursuers = players.filter((p) => p.role === 'pursuer');
-
-    // Pick 10 possible fugitive spawn hubs
-    const fugitiveSpawns = ['st-01', 'st-04', 'st-10', 'st-18', 'st-26', 'st-34', 'st-42', 'st-29', 'st-13', 'st-06'];
-    const fugitiveStart = fugitiveSpawns[Math.floor(Math.random() * fugitiveSpawns.length)];
-
-    if (fugitive) {
-      fugitive.currentStationId = fugitiveStart;
-      this.players.set(fugitive.id, fugitive);
-    }
-
-    // Pursuer spawn points should be at least distance 3 or 4 away from fugitive to be fair and tactical
-    const availableSpawns = STATIONS
-      .filter((s) => getDistance(s.id, fugitiveStart) >= 3)
-      .map((s) => s.id)
-      .sort(() => Math.random() - 0.5);
-
-    let spawnIdx = 0;
-    for (const pursuer of pursuers) {
-      pursuer.currentStationId = availableSpawns[spawnIdx % availableSpawns.length];
-      this.players.set(pursuer.id, pursuer);
-      spawnIdx++;
+    for (const player of players) {
+      player.currentStationId = '';
+      this.players.set(player.id, player);
     }
   }
 
   public start() {
-    this.phase = 'planning';
-    this.phaseTimeRemaining = this.settings.phaseDuration;
-    
-    // Start main countdown timers
-    this.startMatchTimer();
+    this.phase = 'setup';
+    this.turnRole = null;
+    this.phaseTimeRemaining = STARTING_POSITION_DURATION_SECONDS;
     this.startPhaseTimer();
     this.callbacks.onStateUpdate(this);
+  }
+
+  private beginTurn(role: Role) {
+    this.phase = 'planning';
+    this.turnRole = role;
+    this.startPhaseTimer();
   }
 
   private startMatchTimer() {
@@ -150,14 +126,15 @@ export class GameEngine {
   private startPhaseTimer() {
     if (this.phaseTimerInterval) clearInterval(this.phaseTimerInterval);
 
-    this.phaseTimeRemaining = this.settings.phaseDuration;
+    this.phaseTimeRemaining =
+      this.phase === 'setup' ? STARTING_POSITION_DURATION_SECONDS : this.settings.phaseDuration;
     this.phaseTimerInterval = setInterval(() => {
-      if (this.phase !== 'planning') return;
+      if (this.phase !== 'setup' && this.phase !== 'planning') return;
 
       this.phaseTimeRemaining = Math.max(0, this.phaseTimeRemaining - 1);
 
       if (this.phaseTimeRemaining === 0) {
-        // Time is up! Resolve all confirmed or defaulted moves
+        // Setup assigns unclaimed stations; timed-out turns leave players in place.
         this.resolvePhase();
       } else {
         this.callbacks.onStateUpdate(this);
@@ -183,7 +160,7 @@ export class GameEngine {
   }
 
   public submitMove(playerId: string, toStationId: string, transport: TransportType): boolean {
-    if (this.phase !== 'planning') return false;
+    if (this.phase !== 'planning' && this.phase !== 'setup') return false;
 
     const player = this.players.get(playerId);
     if (!player) return false;
@@ -192,9 +169,16 @@ export class GameEngine {
     const existing = this.pendingMoves.get(playerId);
     if (existing && existing.locked) return false;
 
-    // Check if move is legal
-    if (!isValidMove(player.currentStationId, toStationId, transport)) {
-      return false;
+    if (this.phase === 'setup') {
+      if (!STATIONS.some((station) => station.id === toStationId)) return false;
+      const stationClaimed = Array.from(this.pendingMoves.values()).some(
+        (move) => move.playerId !== playerId && move.toStationId === toStationId
+      );
+      if (stationClaimed) return false;
+    } else {
+      if (player.role !== this.turnRole || !isValidMove(player.currentStationId, toStationId, transport)) {
+        return false;
+      }
     }
 
     this.pendingMoves.set(playerId, {
@@ -209,21 +193,26 @@ export class GameEngine {
   }
 
   public confirmMove(playerId: string): boolean {
-    if (this.phase !== 'planning') return false;
+    if (this.phase !== 'planning' && this.phase !== 'setup') return false;
 
     const pending = this.pendingMoves.get(playerId);
     if (!pending) return false;
+    const player = this.players.get(playerId);
+    if (!player) return false;
+    if (this.phase === 'planning' && player.role !== this.turnRole) return false;
 
     pending.locked = true;
     this.callbacks.onStateUpdate(this);
 
-    // Check if all connected & active players have locked their move
-    const allLocked = Array.from(this.players.values())
-      .filter((p) => p.connected || p.isAi)
-      .every((p) => {
-        const move = this.pendingMoves.get(p.id);
-        return move && move.locked;
-      });
+    const expectedPlayers = Array.from(this.players.values()).filter(
+      (candidate) =>
+        (candidate.connected || candidate.isAi) &&
+        (this.phase === 'setup' || candidate.role === this.turnRole)
+    );
+    const allLocked = expectedPlayers.every((candidate) => {
+      const move = this.pendingMoves.get(candidate.id);
+      return move && move.locked;
+    });
 
     if (allLocked) {
       this.resolvePhase();
@@ -233,32 +222,30 @@ export class GameEngine {
   }
 
   public resolvePhase() {
+    if (this.phase !== 'planning' && this.phase !== 'setup') return;
     if (this.phaseTimerInterval) {
       clearInterval(this.phaseTimerInterval);
       this.phaseTimerInterval = null;
     }
 
+    if (this.phase === 'setup') {
+      this.finishStartingPositionSelection();
+      return;
+    }
+
+    const resolvedRole = this.turnRole;
+    if (!resolvedRole) return;
     this.phase = 'resolving';
     this.callbacks.onStateUpdate(this);
 
-    // Process simultaneous movements
-    const movements: MovementRecord[] = [];
     const timestamp = Date.now();
 
     for (const [playerId, player] of this.players.entries()) {
+      if (player.role !== resolvedRole) continue;
       const move = this.pendingMoves.get(playerId);
       if (move && move.locked) {
-        // Capture the origin BEFORE mutating the player's position.
         const fromStationId = player.currentStationId;
 
-        movements.push({
-          phase: this.currentPhaseNumber,
-          playerId,
-          transport: move.transport,
-          fromStationId,
-          toStationId: move.toStationId,
-          timestamp,
-        });
         player.currentStationId = move.toStationId;
 
         // If this is the fugitive, record history
@@ -280,43 +267,81 @@ export class GameEngine {
             );
           }
         }
-      } else {
-        // Player didn't confirm or submit: stays at current station
-        if (player.role === 'fugitive') {
-          // If fugitive didn't move, last transport remains taxi or none
-        }
       }
     }
 
-    // Clear pending moves
     this.pendingMoves.clear();
 
-    // Check collision / capture
-    const fugitive = Array.from(this.players.values()).find((p) => p.role === 'fugitive');
-    const pursuers = Array.from(this.players.values()).filter((p) => p.role === 'pursuer');
-
-    let isCaptured = false;
-    if (fugitive) {
-      for (const pursuer of pursuers) {
-        if (pursuer.currentStationId === fugitive.currentStationId) {
-          isCaptured = true;
-          this.captureStationId = fugitive.currentStationId;
-          break;
-        }
-      }
+    if (resolvedRole === 'fugitive') {
+      this.callbacks.onPhaseResolved(this, this.currentPhaseNumber);
     }
 
-    if (isCaptured) {
-      this.endGame('pursuer', 'captured');
+    if (this.checkForCapture()) return;
+
+    if (resolvedRole === 'fugitive') {
+      this.beginTurn('pursuer');
+      this.callbacks.onStateUpdate(this);
+      this.callbacks.onTurnChanged(this);
       return;
     }
 
-    // Advance phase
     this.currentPhaseNumber += 1;
-    this.phase = 'planning';
-    this.startPhaseTimer();
-    this.callbacks.onPhaseResolved(this, this.currentPhaseNumber - 1);
+    this.beginTurn('fugitive');
     this.callbacks.onStateUpdate(this);
+    this.callbacks.onTurnChanged(this);
+  }
+
+  private finishStartingPositionSelection() {
+    const claimedStations = new Set(
+      Array.from(this.pendingMoves.values()).map((move) => move.toStationId)
+    );
+    let defaultedPlayers = 0;
+
+    for (const player of this.players.values()) {
+      const selectedStation = this.pendingMoves.get(player.id)?.toStationId;
+      if (selectedStation) {
+        player.currentStationId = selectedStation;
+      } else {
+        const availableStation = STATIONS.find((station) => !claimedStations.has(station.id));
+        if (!availableStation) {
+          this.endGame('pursuer', 'host_ended');
+          return;
+        }
+        player.currentStationId = availableStation.id;
+        claimedStations.add(availableStation.id);
+        defaultedPlayers += 1;
+      }
+    }
+
+    this.pendingMoves.clear();
+    if (defaultedPlayers > 0) {
+      this.callbacks.onNotification(
+        `Starting positions were assigned for ${defaultedPlayers} player(s) who did not choose in time.`,
+        'warning'
+      );
+    }
+
+    this.turnRole = 'fugitive';
+    this.beginTurn('fugitive');
+    this.startMatchTimer();
+    this.callbacks.onStateUpdate(this);
+    this.callbacks.onNotification('Starting positions locked. The Fugitive moves first.', 'info');
+    this.callbacks.onTurnChanged(this);
+  }
+
+  private checkForCapture(): boolean {
+    const fugitive = Array.from(this.players.values()).find((p) => p.role === 'fugitive');
+    const pursuers = Array.from(this.players.values()).filter((p) => p.role === 'pursuer');
+    if (fugitive) {
+      for (const pursuer of pursuers) {
+        if (pursuer.currentStationId === fugitive.currentStationId) {
+          this.captureStationId = fugitive.currentStationId;
+          this.endGame('pursuer', 'captured');
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**
@@ -379,13 +404,13 @@ export class GameEngine {
     } else {
       this.extensionUsed = true;
       this.survivalTimeRemaining = this.settings.extensionDuration;
-      this.phase = 'planning';
-      this.startPhaseTimer();
+      this.beginTurn('fugitive');
       this.callbacks.onNotification(
         'The Fugitive has granted a 5-minute extension! The hunt continues!',
         'alert'
       );
       this.callbacks.onStateUpdate(this);
+      this.callbacks.onTurnChanged(this);
       return true;
     }
     return false;
@@ -441,7 +466,8 @@ export class GameEngine {
         connected: p.connected,
         difficulty: p.difficulty,
         color: p.color,
-        currentStationId: visibleStationId,
+        currentStationId:
+          this.phase === 'setup' ? move?.toStationId || null : visibleStationId,
         hasLockedMove: move ? move.locked : false,
       };
     });
@@ -467,6 +493,7 @@ export class GameEngine {
     return {
       roomId: this.roomId,
       phase: this.phase,
+      turnRole: this.turnRole,
       phaseTimeRemaining: this.phaseTimeRemaining,
       survivalTimeRemaining: this.survivalTimeRemaining,
       currentPhaseNumber: this.currentPhaseNumber,
@@ -475,7 +502,10 @@ export class GameEngine {
       players: clientPlayers,
       myRole: viewerRole,
       myPlayerId: playerId,
-      myCurrentStationId: viewer ? viewer.currentStationId : '',
+      myCurrentStationId:
+        this.phase === 'setup'
+          ? myPendingMove?.toStationId || ''
+          : viewer ? viewer.currentStationId : '',
       myPendingMove,
       revelation: {
         active: this.revelationActive,

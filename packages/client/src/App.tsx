@@ -100,10 +100,22 @@ export const App: React.FC = () => {
   // Reset selected destination when new round phase begins
   useEffect(() => {
     setSelectedDestination(null);
-  }, [gameState?.currentPhaseNumber]);
+  }, [gameState?.currentPhaseNumber, gameState?.turnRole, gameState?.phase]);
 
   const handleSelectStation = (stationId: string, preferredTransport?: TransportType) => {
-    if (!gameState || gameState.phase !== 'planning' || gameState.myPendingMove?.locked) return;
+    if (!gameState || gameState.myPendingMove?.locked) return;
+
+    if (gameState.phase === 'setup') {
+      setSelectedDestination(stationId);
+      selectMove(stationId, 'taxi');
+      return;
+    }
+
+    if (
+      gameState.phase !== 'planning' ||
+      gameState.turnRole !== gameState.myRole
+    ) return;
+
     const myStation = gameState.myCurrentStationId;
     const available = getAvailableTransports(myStation, stationId);
     if (available.length === 0) return;
@@ -118,7 +130,11 @@ export const App: React.FC = () => {
   };
 
   const handleSelectTransport = (transport: TransportType) => {
-    if (gameState?.myPendingMove?.locked) return;
+    if (
+      gameState?.myPendingMove?.locked ||
+      gameState?.phase !== 'planning' ||
+      gameState.turnRole !== gameState.myRole
+    ) return;
     setSelectedTransport(transport);
     setSelectedDestination(null);
   };

@@ -1,5 +1,9 @@
 import React from 'react';
-import { ClientGameState, TRANSPORT_CONFIG } from '@fuyardesque/shared';
+import {
+  ClientGameState,
+  STARTING_POSITION_DURATION_SECONDS,
+  TRANSPORT_CONFIG,
+} from '@fuyardesque/shared';
 import { Shield, Radio, Volume2, VolumeX, Eye, AlertTriangle } from 'lucide-react';
 import { sound } from '../../services/sound';
 
@@ -25,9 +29,13 @@ export const TopNav: React.FC<TopNavProps> = ({
 
   const isFugitive = gameState.myRole === 'fugitive';
   const survivalLow = gameState.survivalTimeRemaining < 90;
+  const phaseDuration =
+    gameState.phase === 'setup'
+      ? STARTING_POSITION_DURATION_SECONDS
+      : gameState.settings.phaseDuration;
   const phasePercent = Math.max(
     0,
-    Math.min(100, (gameState.phaseTimeRemaining / gameState.settings.phaseDuration) * 100)
+    Math.min(100, (gameState.phaseTimeRemaining / phaseDuration) * 100)
   );
 
   return (
@@ -76,7 +84,13 @@ export const TopNav: React.FC<TopNavProps> = ({
         {/* Phase Movement Timer */}
         <div className="flex flex-col items-center w-36">
           <div className="flex items-center justify-between w-full text-[10px] font-mono tracking-wider text-slate-400 mb-0.5">
-            <span>PHASE {gameState.currentPhaseNumber}</span>
+            <span>
+              {gameState.phase === 'setup'
+                ? 'START POSITIONS'
+                : gameState.phase === 'planning'
+                  ? `${gameState.turnRole === 'fugitive' ? 'FUGITIVE' : 'DETECTIVES'} TURN · ROUND ${gameState.currentPhaseNumber}`
+                  : `ROUND ${gameState.currentPhaseNumber}`}
+            </span>
             <span className="font-bold text-cyan-400">{gameState.phaseTimeRemaining}s</span>
           </div>
           <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">

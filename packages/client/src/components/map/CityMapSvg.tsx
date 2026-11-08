@@ -43,21 +43,35 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
 
   const myStationId = gameState?.myCurrentStationId || '';
   const myRole = gameState?.myRole || 'pursuer';
+  const isSetup = gameState?.phase === 'setup';
   // Once a move is locked (or outside the planning phase) the map must not
   // suggest a different destination than the one already submitted.
   const isMoveLocked =
-    gameState?.myPendingMove?.locked === true || gameState?.phase !== 'planning';
+    gameState?.myPendingMove?.locked === true ||
+    (gameState?.phase !== 'setup' &&
+      (gameState?.phase !== 'planning' || gameState.turnRole !== myRole));
 
   // Compute all directly accessible neighbors from the player's station
   const myNeighborData = useMemo(() => {
-    if (!myStationId) return new Map<string, TransportType[]>();
+    if (!myStationId || isSetup) return new Map<string, TransportType[]>();
     const neighbors = getNeighbors(myStationId);
     const map = new Map<string, TransportType[]>();
     neighbors.forEach((nId) => {
       map.set(nId, getAvailableTransports(myStationId, nId));
     });
     return map;
-  }, [myStationId]);
+  }, [myStationId, isSetup]);
+
+  const setupTakenStations = useMemo(
+    () =>
+      new Set(
+        (gameState?.players || [])
+          .filter((player) => player.id !== gameState?.myPlayerId)
+          .map((player) => player.currentStationId)
+          .filter((stationId): stationId is string => !!stationId)
+      ),
+    [gameState?.players, gameState?.myPlayerId]
+  );
 
   // Center on current player
   const centerOnPlayer = useCallback(() => {
@@ -156,8 +170,12 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     const start = pointerStartRef.current;
     if (start && !hasDraggedRef.current && start.stationId && !isMoveLocked) {
-      const transports = myNeighborData.get(start.stationId);
-      if (transports?.length) onSelectStation(start.stationId);
+      if (isSetup) {
+        if (!setupTakenStations.has(start.stationId)) onSelectStation(start.stationId);
+      } else {
+        const transports = myNeighborData.get(start.stationId);
+        if (transports?.length) onSelectStation(start.stationId);
+      }
     }
     pointerStartRef.current = null;
     previousPointerRef.current = null;
@@ -277,7 +295,9 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
 
   const inspectedStationId = selectedDestination || hoveredStationId;
   const inspectedStation = inspectedStationId ? getStationById(inspectedStationId) : null;
-  const inspectedTransports = inspectedStationId && myStationId ? myNeighborData.get(inspectedStationId) : null;
+  const inspectedTransports = !isSetup && inspectedStationId && myStationId
+    ? myNeighborData.get(inspectedStationId)
+    : null;
   const myCurrentStation = myStationId ? getStationById(myStationId) : null;
 
   return (
@@ -351,7 +371,13 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
             </span>
           </div>
 
-          {inspectedTransports && inspectedTransports.length > 0 ? (
+          {isSetup ? (
+            <div className="text-[11px] font-mono text-emerald-300">
+              {setupTakenStations.has(inspectedStation.id)
+                ? 'Already selected by another player.'
+                : 'Click to choose this starting station.'}
+            </div>
+          ) : inspectedTransports && inspectedTransports.length > 0 ? (
             <div>
               <div className="text-[11px] font-mono text-emerald-400 font-semibold mb-2 flex items-center gap-1">
                 <span>✓ Reachable from {myCurrentStation?.name || myStationId}:</span>
@@ -637,13 +663,14 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
           const isDirectNeighbor = !!directTransports && directTransports.length > 0;
           const isSelected = selectedDestination === st.id;
           const isHovered = hoveredStationId === st.id;
+          const isSetupTaken = isSetup && setupTakenStations.has(st.id);
           const stationTransports = stationTransportsMap.get(st.id) || ['taxi'];
 
           return (
             <g
               key={st.id}
               data-station-id={st.id}
-              className="cursor-pointer"
+              className={isSetupTaken ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
               onMouseEnter={() => setHoveredStationId(st.id)}
               onMouseLeave={() => setHoveredStationId(null)}
             >
@@ -661,19 +688,21 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
               )}
 
               {/* Accessible Neighbor Highlight Halo */}
-              {isDirectNeighbor && !isSelected && (
+              {((isDirectNeighbor && !isSelected) || (isSetup && !isSetupTaken && !isSelected)) && (
                 <circle
                   cx={st.x}
                   cy={st.y}
                   r="25"
                   fill="none"
                   stroke={
-                    directTransports.includes(selectedTransport)
+                    isSetup
+                      ? '#34d399'
+                      : directTransports?.includes(selectedTransport)
                       ? TRANSPORT_CONFIG[selectedTransport].color
                       : '#38bdf8'
                   }
                   strokeWidth="3.5"
-                  strokeDasharray="4,2"
+                  strokeDasharray={isSetup ? '2,5' : '4,2'}
                   opacity="0.95"
                 />
               )}

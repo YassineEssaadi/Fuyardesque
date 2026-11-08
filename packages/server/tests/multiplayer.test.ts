@@ -4,7 +4,7 @@ import { Server } from 'socket.io';
 import { io as ClientSocket, Socket as ClientSocketType } from 'socket.io-client';
 import { RoomManager } from '../src/rooms/RoomManager';
 import { setupSocketHandlers } from '../src/socket/socketHandler';
-import { ClientGameState, SOCKET_EVENTS } from '@fuyardesque/shared';
+import { ClientGameState, SOCKET_EVENTS, getConnectionsFrom } from '@fuyardesque/shared';
 
 let passed = 0;
 let failed = 0;
@@ -115,22 +115,22 @@ async function runMultiplayerE2E() {
   await readyPromise;
   assert(true, 'Ready status updates and broadcasts to the lobby');
 
-  // Phase duration accepts only the shared option list (no 25s).
+  // Turn duration is fixed to 30 seconds.
   const nextLobbyState = () =>
     new Promise<any>((resolve) => clientA.once(SOCKET_EVENTS.ROOM_STATE, resolve));
 
   clientA.emit(SOCKET_EVENTS.UPDATE_SETTINGS, { settings: { phaseDuration: 25 } });
   const afterInvalidDuration = await nextLobbyState();
   assert(
-    afterInvalidDuration.settings.phaseDuration === 15,
-    'Unsupported 25s phase duration is rejected'
+    afterInvalidDuration.settings.phaseDuration === 30,
+    'Unsupported 25s turn duration is rejected'
   );
 
   clientA.emit(SOCKET_EVENTS.UPDATE_SETTINGS, { settings: { phaseDuration: 20 } });
-  const afterValidDuration = await nextLobbyState();
-  assert(afterValidDuration.settings.phaseDuration === 20, 'Supported phase duration is applied');
+  const afterUnsupportedDuration = await nextLobbyState();
+  assert(afterUnsupportedDuration.settings.phaseDuration === 30, 'Turn duration cannot be changed from 30 seconds');
 
-  clientA.emit(SOCKET_EVENTS.UPDATE_SETTINGS, { settings: { phaseDuration: 15 } });
+  clientA.emit(SOCKET_EVENTS.UPDATE_SETTINGS, { settings: { phaseDuration: 30 } });
   await nextLobbyState();
 
   clientA.emit(SOCKET_EVENTS.UPDATE_SETTINGS, {
@@ -190,22 +190,84 @@ async function runMultiplayerE2E() {
 
   const [stateA, stateB] = await Promise.all([statePromiseA, statePromiseB]);
 
-  assert(stateA.phase === 'planning', 'Game started in planning phase for Client A');
-  assert(stateB.phase === 'planning', 'Game started in planning phase for Client B');
+  assert(stateA.phase === 'setup', 'Game starts with starting-station selection for Client A');
+  assert(stateB.phase === 'setup', 'Game starts with starting-station selection for Client B');
   assert(stateA.myRole === 'fugitive', 'Client A is assigned Fugitive role');
   assert(stateB.myRole === 'pursuer', 'Client B is assigned Pursuer role');
 
+  const planningPromiseA = new Promise<ClientGameState>((resolve) => {
+    const handler = (state: ClientGameState) => {
+      if (state.phase === 'planning') {
+        clientA.off(SOCKET_EVENTS.GAME_STATE, handler);
+        resolve(state);
+      }
+    };
+    clientA.on(SOCKET_EVENTS.GAME_STATE, handler);
+  });
+  const planningPromiseB = new Promise<ClientGameState>((resolve) => {
+    const handler = (state: ClientGameState) => {
+      if (state.phase === 'planning') {
+        clientB.off(SOCKET_EVENTS.GAME_STATE, handler);
+        resolve(state);
+      }
+    };
+    clientB.on(SOCKET_EVENTS.GAME_STATE, handler);
+  });
+
+  clientA.emit(SOCKET_EVENTS.SELECT_MOVE, { toStationId: 'st-49', transport: 'taxi' });
+  clientB.emit(SOCKET_EVENTS.SELECT_MOVE, { toStationId: 'st-50', transport: 'taxi' });
+  clientA.emit(SOCKET_EVENTS.CONFIRM_MOVE);
+  clientB.emit(SOCKET_EVENTS.CONFIRM_MOVE);
+  const [planningStateA, planningStateB] = await Promise.all([planningPromiseA, planningPromiseB]);
+  assert(
+    planningStateA.turnRole === 'fugitive' && planningStateB.turnRole === 'fugitive',
+    'The Fugitive receives the first 30-second movement turn'
+  );
+  assert(planningStateA.phaseTimeRemaining === 30, 'Fugitive turn timer starts at 30 seconds');
+  assert(
+    new Set(planningStateA.players.map((player) => player.currentStationId).filter(Boolean)).size === 3,
+    'All players retain their distinct selected starting stations when setup ends'
+  );
+
   // Strict Security payload check on real WebSocket transmission:
-  const fugitiveInViewB = stateB.players.find((p) => p.role === 'fugitive');
+  const fugitiveInViewB = planningStateB.players.find((p) => p.role === 'fugitive');
   assert(
     fugitiveInViewB?.currentStationId === null,
     'SECURITY VERIFIED: Client B (Pursuer) received NULL currentStationId for Fugitive over WebSocket'
   );
 
-  const fugitiveInViewA = stateA.players.find((p) => p.role === 'fugitive');
+  const fugitiveInViewA = planningStateA.players.find((p) => p.role === 'fugitive');
   assert(
     fugitiveInViewA?.currentStationId !== null && fugitiveInViewA?.currentStationId !== '',
     'Client A (Fugitive) received their own currentStationId over WebSocket'
+  );
+
+  const detectiveTurnPromise = new Promise<ClientGameState>((resolve) => {
+    const handler = (state: ClientGameState) => {
+      if (state.phase === 'planning' && state.turnRole === 'pursuer') {
+        clientB.off(SOCKET_EVENTS.GAME_STATE, handler);
+        resolve(state);
+      }
+    };
+    clientB.on(SOCKET_EVENTS.GAME_STATE, handler);
+  });
+  const fugitiveMove = getConnectionsFrom(planningStateA.myCurrentStationId).find(
+    (connection) => connection.to !== 'st-50' && connection.to !== 'st-01'
+  )!;
+  clientA.emit(SOCKET_EVENTS.SELECT_MOVE, {
+    toStationId: fugitiveMove.to,
+    transport: fugitiveMove.transport,
+  });
+  clientA.emit(SOCKET_EVENTS.CONFIRM_MOVE);
+  const detectiveTurnState = await detectiveTurnPromise;
+  assert(
+    detectiveTurnState.currentPhaseNumber === 1 && detectiveTurnState.phaseTimeRemaining === 30,
+    'Detectives receive their own 30-second turn after the Fugitive moves'
+  );
+  assert(
+    detectiveTurnState.players.find((player) => player.role === 'fugitive')?.currentStationId === null &&
+      detectiveTurnState.fugitiveHistory[0]?.revealedStationId === undefined,
+    'Detective turn begins with the Fugitive location still hidden until a reveal milestone'
   );
 
   // Test Team Chat Isolation

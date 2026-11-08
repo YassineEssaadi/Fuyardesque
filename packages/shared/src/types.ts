@@ -40,7 +40,7 @@ export interface Player {
 export interface RoomSettings {
   minPlayers: number;
   maxPlayers: number;
-  phaseDuration: number; // default 15s
+  phaseDuration: number; // 30s per turn
   survivalDuration: number; // default 510s (8m 30s)
   extensionDuration: number; // default 300s (5m)
   revealInterval: number; // default 90s
@@ -48,7 +48,7 @@ export interface RoomSettings {
   gameMode: GameMode;
 }
 
-export type GamePhase = 'lobby' | 'planning' | 'resolving' | 'fugitive_decision' | 'game_over';
+export type GamePhase = 'lobby' | 'setup' | 'planning' | 'resolving' | 'fugitive_decision' | 'game_over';
 
 export interface PendingMove {
   playerId: string;
@@ -107,6 +107,7 @@ export interface ClientPlayerState {
 export interface ClientGameState {
   roomId: string;
   phase: GamePhase;
+  turnRole: Role | null;
   phaseTimeRemaining: number;
   survivalTimeRemaining: number;
   currentPhaseNumber: number;

@@ -44,28 +44,28 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ isOpen, onClose 
                 <div className="font-mono font-bold text-rose-300 mb-1">THE FUGITIVE (1 Player)</div>
                 <p className="text-slate-400 text-[11px]">
                   Survive for <strong>8 minutes and 30 seconds</strong>. Move through the city in secret.
-                  Your true location is hidden from pursuers except during periodic radar sweeps!
+                  Your true location is hidden from pursuers except during periodic radar sweeps and every third move.
                 </p>
               </div>
 
               <div className="bg-cyan-950/20 border border-cyan-900/40 p-3 rounded-lg">
                 <div className="font-mono font-bold text-cyan-300 mb-1">THE PURSUERS (Remaining)</div>
                 <p className="text-slate-400 text-[11px]">
-                  Locate and capture the Fugitive by finishing a simultaneous movement phase on the same station.
+                  Locate and capture the Fugitive by moving onto their station during the detectives’ turn.
                   Coordinate using your private Team Chat!
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Simultaneous Phases */}
+          {/* Sequential Turns */}
           <div>
             <h3 className="font-mono font-bold text-slate-100 text-sm mb-1.5 flex items-center gap-1.5">
               <Clock className="w-4 h-4 text-amber-400" />
-              2. Simultaneous Movement (15s Rounds)
+              2. Starting Positions and Sequential Turns
             </h3>
             <p className="text-slate-400 mb-2">
-              All players choose their destinations simultaneously. Select a transport tab (Taxi, Bus, Metro), click a valid connected station, and lock in your move. Movements are executed simultaneously when everyone locks in or the 15-second phase timer expires!
+              First, every player chooses a different starting station within 30 seconds. Then the Fugitive gets 30 seconds to choose and lock a move. After the Fugitive moves, the detectives discuss the new intel and choose their moves together within their own 30-second turn. Each turn resolves when everyone on that side locks in or the timer expires. Players who do not lock a move stay where they are.
             </p>
           </div>
 

@@ -8,6 +8,7 @@ import {
   Player,
   Role,
   SOCKET_EVENTS,
+  STARTING_POSITION_DURATION_SECONDS,
   SURVIVAL_DURATION_OPTIONS,
   findShortestPath,
   getConnectionsFrom,
@@ -52,8 +53,9 @@ async function runTests() {
   const path = findShortestPath('st-01', 'st-50');
   assert(path.length > 0 && path[0] === 'st-01' && path[path.length - 1] === 'st-50', 'Shortest path found across city');
 
-  assert(DEFAULT_SETTINGS.phaseDuration === 15, 'Default phase duration matches the documented 15s');
-  assert(PHASE_DURATION_OPTIONS.includes(15), 'Default phase duration is an offered option');
+  assert(DEFAULT_SETTINGS.phaseDuration === 30, 'Default turn duration is 30 seconds');
+  assert(PHASE_DURATION_OPTIONS.length === 1 && PHASE_DURATION_OPTIONS[0] === 30, 'Only the requested 30s turn duration is offered');
+  assert(STARTING_POSITION_DURATION_SECONDS === 30, 'Starting position selection lasts 30 seconds');
   assert(!PHASE_DURATION_OPTIONS.includes(25), 'Unsupported 25s duration is not offered');
   assert(SURVIVAL_DURATION_OPTIONS.includes(DEFAULT_SETTINGS.survivalDuration), 'Default survival duration is configurable');
   assert(EXTENSION_DURATION_OPTIONS.includes(DEFAULT_SETTINGS.extensionDuration), 'Default extension duration is configurable');
@@ -111,6 +113,7 @@ async function runTests() {
     {
       onStateUpdate: () => stateUpdated++,
       onPhaseResolved: () => phaseResolved++,
+      onTurnChanged: () => {},
       onGameOver: (_, winner) => { gameOverWinner = winner; },
       onFugitiveDecisionNeeded: () => { fugitiveDecisionTriggered = true; },
       onNotification: () => {},
@@ -123,8 +126,68 @@ async function runTests() {
 
   assert(fugitive?.role === 'fugitive', 'Fugitive assigned correctly');
   assert(pursuer1?.role === 'pursuer' && pursuer2?.role === 'pursuer', 'Pursuers assigned correctly');
-  assert(fugitive?.currentStationId !== '', 'Fugitive received valid starting station');
-  assert(pursuer1?.currentStationId !== '', 'Pursuer 1 received valid starting station');
+  assert(engine.phase === 'setup', 'Game opens with a starting-position selection phase');
+  assert(fugitive?.currentStationId === '', 'Fugitive is not assigned a random starting station');
+  assert(pursuer1?.currentStationId === '', 'Pursuers are not assigned random starting stations');
+
+  const startingSelections = [
+    ['p_fugitive', 'st-01'],
+    ['p_pursuer_1', 'st-24'],
+    ['p_pursuer_2', 'st-50'],
+  ] as const;
+  for (const [playerId, stationId] of startingSelections) {
+    if (playerId === 'p_pursuer_1') {
+      assert(!engine.submitMove(playerId, 'st-01', 'taxi'), 'A station already chosen during setup cannot be claimed twice');
+    }
+    assert(engine.submitMove(playerId, stationId, 'taxi'), `${playerId} can select a starting station`);
+    assert(engine.confirmMove(playerId), `${playerId} can lock their starting station`);
+  }
+  assert(engine.phase === 'planning' && engine.turnRole === 'fugitive', 'Fugitive starts after all stations are locked');
+  assert(
+    new Set(Array.from(engine.players.values()).map((player) => player.currentStationId)).size === 3,
+    'Starting stations must be unique'
+  );
+
+  const setupTimeoutEngine = new GameEngine(
+    'TEST_SETUP_TIMEOUT',
+    DEFAULT_SETTINGS,
+    mockPlayers.slice(0, 2).map((player) => ({ ...player, currentStationId: '' })),
+    {
+      onStateUpdate: () => {},
+      onPhaseResolved: () => {},
+      onTurnChanged: () => {},
+      onGameOver: () => {},
+      onFugitiveDecisionNeeded: () => {},
+      onNotification: () => {},
+    }
+  );
+  setupTimeoutEngine.start();
+  assert(
+    setupTimeoutEngine.phaseTimeRemaining === STARTING_POSITION_DURATION_SECONDS,
+    'Starting position timer begins at 30 seconds'
+  );
+  setupTimeoutEngine.resolvePhase();
+  const timeoutPositions = Array.from(setupTimeoutEngine.players.values()).map(
+    (player) => player.currentStationId
+  );
+  assert(
+    setupTimeoutEngine.phase === 'planning' &&
+      new Set(timeoutPositions).size === 2 &&
+      timeoutPositions.every(Boolean),
+    'Setup timeout fills missing starting selections with distinct stations'
+  );
+  assert(
+    setupTimeoutEngine.survivalTimeRemaining === DEFAULT_SETTINGS.survivalDuration,
+    'Survival clock starts only after starting-position selection ends'
+  );
+  const fugitiveStart = setupTimeoutEngine.players.get('p_fugitive')!.currentStationId;
+  setupTimeoutEngine.resolvePhase();
+  assert(
+    setupTimeoutEngine.turnRole === 'pursuer' &&
+      setupTimeoutEngine.players.get('p_fugitive')!.currentStationId === fugitiveStart,
+    'Fugitive timeout leaves them at their current station and hands turn to detectives'
+  );
+  setupTimeoutEngine.destroy();
 
   // Test 3: ZERO-LEAKAGE SECURITY CHECK
   console.log('\n[Suite 3: Information Security & Role Views]');
@@ -149,43 +212,43 @@ async function runTests() {
   );
 
   // Test 4: Legal & Illegal Movement Validation
-  console.log('\n[Suite 4: Movement Validation & Simultaneous Resolution]');
+  console.log('\n[Suite 4: Sequential Movement & Turn Validation]');
   engine.phase = 'planning';
+  engine.turnRole = 'fugitive';
   
-  // Try illegal move for pursuer 1
+  // Detectives may not move until the Fugitive has finished their turn.
   const illegalMoveResult = engine.submitMove('p_pursuer_1', 'st-99_invalid', 'taxi');
-  assert(illegalMoveResult === false, 'Illegal move destination rejected by server');
-
-  // Find legal neighbor for pursuer 1
-  const p1Station = pursuer1!.currentStationId;
-  const p1Neighbors = getConnectionsFrom(p1Station);
-  const p1Conn = p1Neighbors[0];
-  
-  const legalMoveResult = engine.submitMove('p_pursuer_1', p1Conn.to, p1Conn.transport);
-  assert(legalMoveResult === true, 'Legal move accepted');
-
-  // Confirm move
-  engine.confirmMove('p_pursuer_1');
-  assert(engine.pendingMoves.get('p_pursuer_1')?.locked === true, 'Move locked after confirmation');
-
-  // Attempt duplicate move in same phase
-  const duplicateMoveResult = engine.submitMove('p_pursuer_1', p1Neighbors[1]?.to || p1Conn.to, 'taxi');
-  assert(duplicateMoveResult === false, 'Player CANNOT move twice in the same phase');
+  assert(illegalMoveResult === false, 'Out-of-turn detective movement is rejected');
 
   // Move fugitive legally
   const fugStation = fugitive!.currentStationId;
-  const fugConn = getConnectionsFrom(fugStation)[0];
+  const fugConn = getConnectionsFrom(fugStation).find(
+    (connection) => connection.to !== pursuer1!.currentStationId && connection.to !== pursuer2!.currentStationId
+  )!;
   engine.submitMove('p_fugitive', fugConn.to, fugConn.transport);
   engine.confirmMove('p_fugitive');
+  assert(engine.turnRole === 'pursuer', 'Detective team turn begins after Fugitive movement');
+
+  const p1Conn = getConnectionsFrom(pursuer1!.currentStationId).find(
+    (connection) => connection.to !== fugConn.to
+  )!;
+  const legalMoveResult = engine.submitMove('p_pursuer_1', p1Conn.to, p1Conn.transport);
+  assert(legalMoveResult === true, 'Legal detective move accepted on the detective turn');
+  engine.confirmMove('p_pursuer_1');
+  assert(engine.pendingMoves.get('p_pursuer_1')?.locked === true, 'Move locked after confirmation');
+  const duplicateMoveResult = engine.submitMove('p_pursuer_1', p1Conn.to, p1Conn.transport);
+  assert(duplicateMoveResult === false, 'Player CANNOT change a locked move');
 
   // AI pursuer submits move
-  const p2Conn = getConnectionsFrom(pursuer2!.currentStationId)[0];
+  const p2Conn = getConnectionsFrom(pursuer2!.currentStationId).find(
+    (connection) => connection.to !== fugConn.to && connection.to !== p1Conn.to
+  )!;
   engine.submitMove('p_pursuer_2', p2Conn.to, p2Conn.transport);
   engine.confirmMove('p_pursuer_2');
 
-  // All moves locked -> phase resolves automatically
+  // Detective team moves resolve once everyone has locked.
   assert(fugitive!.currentStationId === fugConn.to, 'Fugitive moved to new station upon resolution');
-  assert(engine.currentPhaseNumber === 2, 'Game phase advanced to Phase 2');
+  assert(engine.currentPhaseNumber === 2 && engine.turnRole === 'fugitive', 'Game advances to the next Fugitive turn');
 
   const fugitiveMoveRecord = engine.fugitiveHistory[engine.fugitiveHistory.length - 1];
   assert(
@@ -223,6 +286,7 @@ async function runTests() {
   const revealEngine = new GameEngine('TEST_REVEAL', DEFAULT_SETTINGS, revealPlayers, {
     onStateUpdate: () => {},
     onPhaseResolved: () => {},
+    onTurnChanged: () => {},
     onGameOver: () => {},
     onFugitiveDecisionNeeded: () => {},
     onNotification: (message) => {
@@ -233,9 +297,11 @@ async function runTests() {
   const revealPursuer = revealEngine.players.get('p_pursuer_1')!;
   revealFugitive.currentStationId = 'st-01';
   revealPursuer.currentStationId = 'st-50';
+  revealEngine.phase = 'planning';
+  revealEngine.turnRole = 'fugitive';
 
   for (let moveNumber = 1; moveNumber <= FUGITIVE_LOCATION_REVEAL_INTERVAL; moveNumber++) {
-    if (moveNumber === 2) {
+    if (moveNumber > 1) {
       revealEngine.resolvePhase();
     }
 
@@ -243,7 +309,6 @@ async function runTests() {
       .find((connection) => connection.to !== revealPursuer.currentStationId)!;
     revealEngine.submitMove(revealFugitive.id, destination.to, destination.transport);
     revealEngine.confirmMove(revealFugitive.id);
-    revealEngine.resolvePhase();
 
     const pursuerState = revealEngine.getClientState(revealPursuer.id);
     const historyRecord = pursuerState.fugitiveHistory[pursuerState.fugitiveHistory.length - 1];
@@ -332,7 +397,10 @@ async function runTests() {
   assert(extendSuccess === true, 'Fugitive 5-minute extension accepted');
   assert(engine.extensionUsed === true, 'extensionUsed flag is set to true');
   assert(engine.survivalTimeRemaining === DEFAULT_SETTINGS.extensionDuration, 'Timer reset to 5 minutes (300s)');
-  assert(engine.phase === 'planning', 'Match resumes in planning phase');
+  assert(
+    engine.phase === 'planning' && engine.turnRole === 'fugitive',
+    'Match resumes with the Fugitive turn'
+  );
 
   // Attempt second extension (should fail)
   engine.phase = 'fugitive_decision';
@@ -381,6 +449,7 @@ async function runTests() {
     const decisionEngine = new GameEngine('TEST_TIMEOUT', DEFAULT_SETTINGS, players, {
       onStateUpdate: () => {},
       onPhaseResolved: () => {},
+      onTurnChanged: () => {},
       onGameOver: (_, winner) => { timeoutWinner = winner; },
       onFugitiveDecisionNeeded: () => {},
       onNotification: () => { notified = true; },
@@ -404,7 +473,11 @@ async function runTests() {
   responsive.decisionEngine.handleTimerExpired();
   responsive.decisionEngine.handleFugitiveDecision('extend');
   await new Promise((resolve) => setTimeout(resolve, 80));
-  assert(responsive.decisionEngine.phase === 'planning', 'A real Fugitive decision cancels the AFK timeout');
+  assert(
+    responsive.decisionEngine.phase === 'planning' &&
+      responsive.decisionEngine.turnRole === 'fugitive',
+    'A real Fugitive decision cancels the AFK timeout and resumes the Fugitive turn'
+  );
   assert(responsive.decisionEngine.extensionUsed === true, 'Extension decision is applied normally');
   responsive.decisionEngine.destroy();
 
@@ -433,6 +506,13 @@ async function runTests() {
   assert(room.pursuerChat.length === 0, 'Chat is cleared when a new match starts');
 
   const aiEngine = room.gameEngine!;
+  assert(aiEngine.phase === 'setup', 'New match waits for players to choose starting stations');
+  assert(aiEngine.submitMove('host_ai', 'st-50', 'taxi'), 'Human can choose an unclaimed starting station');
+  assert(aiEngine.confirmMove('host_ai'), 'Human can lock their starting station');
+  assert(
+    aiEngine.phase === 'planning' && aiEngine.turnRole === 'fugitive',
+    'Setup hands the first turn to the Fugitive'
+  );
   const intelMessages = () =>
     emitted
       .filter(
@@ -446,14 +526,16 @@ async function runTests() {
 
   // Round 1: the Fugitive moves -> intel names the transport.
   const botFugitive = Array.from(aiEngine.players.values()).find((p) => p.role === 'fugitive')!;
-  const botMove = getConnectionsFrom(botFugitive.currentStationId)[0];
+  const botMove = getConnectionsFrom(botFugitive.currentStationId).find(
+    (connection) => connection.to !== 'st-50'
+  )!;
   aiEngine.submitMove(botFugitive.id, botMove.to, botMove.transport);
   aiEngine.confirmMove(botFugitive.id);
   aiEngine.resolvePhase();
   assert(/traveled via/i.test(lastIntel()), 'Intel reports the transport when the Fugitive moves');
 
-  // Round 2: the Fugitive stays put -> intel must NOT repeat that transport.
-  aiEngine.pendingMoves.clear();
+  // Resolve the detective turn, then let the Fugitive's next timer expire.
+  aiEngine.resolvePhase();
   aiEngine.resolvePhase();
   assert(
     /no movement/i.test(lastIntel()),

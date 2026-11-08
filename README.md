@@ -4,7 +4,7 @@
 [![React](https://img.shields.io/badge/React-18-cyan.svg)](https://reactjs.org/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.7-black.svg)](https://socket.io/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Tests-103%20Passed-emerald.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-128%20Passed-emerald.svg)]()
 
 > **FUYARDESQUE** is a real-time, browser-based multiplayer hidden-movement pursuit game. One player takes the role of the elusive **Fugitive**, surviving for 8 minutes and 30 seconds across the fictional metropolis of **Neo-Lutèce**. The remaining players become the **Pursuers**, collaborating to track, predict, and capture the Fugitive using three distinct transportation networks.
 
@@ -13,13 +13,13 @@
 ## 🎮 Key Features
 
 - **Authoritative Server Architecture**: All game state, collision captures, movement legality, timers, and revelations are validated on the backend.
-- **Zero-Information Leakage**: The server generates role-filtered state views. Pursuer browser sessions and AI bots receive `null` for the Fugitive's location outside authorized periodic revelations.
+- **Zero-Information Leakage**: The server generates role-filtered state views. Pursuer browser sessions and AI bots receive `null` for the Fugitive's location outside authorized radar sweeps, milestone reveals, or game end.
 - **Interactive SVG City Map**: 50 interconnected stations across 6 districts with real-time zooming, panning, station highlighting, and connection glows.
 - **3 Transportation Networks**:
   - 🚖 **Taxi (Yellow)**: Dense local transit between neighboring neighborhood stations.
   - 🚌 **Bus (Blue)**: Arterial routes connecting adjacent districts.
   - 🚇 **Metro Express (Green)**: Rapid transit linking major hubs across long distances.
-- **Simultaneous Movement Phase**: Configurable round timer (default 15s). All players plan and lock their moves simultaneously.
+- **Sequential Turns**: Each player chooses a unique starting station during a 30-second setup. The Fugitive moves first, then detectives plan together based on the latest movement intel, with 30 seconds for each side's turn.
 - **Configurable Match Rules**: Hosts can select solo, humans-only multiplayer, or mixed rosters and choose supported survival, extension, and radar durations.
 - **Location Revelations**: Every third actual Fugitive move permanently reveals that destination in the Mission Log. The timed radar sweep remains active as a separate feature (default: every 90 seconds for 5 seconds).
 - **Survival Clock & 5-Minute Extension**:
@@ -102,9 +102,9 @@ npm run test:all
 ### Test Coverage Highlights:
 - ✅ Map connectivity (50 stations, 362 connections, fully reachable graph).
 - ✅ Valid and illegal movement validation.
-- ✅ Server-side simultaneous movement resolution.
+- ✅ Server-authoritative Fugitive-first turn order followed by team-based detective turns.
 - ✅ Zero-leakage role-based state security filter.
-- ✅ Capture detection upon simultaneous collision.
+- ✅ Capture detection when the Fugitive and a detective occupy the same station.
 - ✅ 8:30 timer and optional 5-minute extension rules.
 - ✅ AFK/disconnected Fugitive decision timeout (match never stalls).
 - ✅ AI Fugitive answers the survival decision automatically.
@@ -117,7 +117,8 @@ npm run test:all
 - ✅ Intel reports that distinguish real movement from a stationary round.
 - ✅ Team chat cleared between matches to prevent cross-match leakage.
 - ✅ Every third actual Fugitive move permanently reveals its destination to all players.
-- ✅ Documented 15s default phase duration, validated against the shared option list.
+- ✅ Unique player-selected starting stations with a 30-second setup timer.
+- ✅ 30-second decision windows for the Fugitive and detective team.
 - ✅ Lobby ready status broadcast, and locked-map selection after a move is locked.
 - ✅ Match mode restrictions, supported timer/radar values, and room-switch channel isolation.
 
@@ -165,10 +166,11 @@ The Express backend is configured to automatically serve the built static client
 1. **Objective**:
    - **The Fugitive**: Evade capture for 8m 30s.
    - **The Pursuers**: Coordinate and reach the Fugitive's station.
-2. **Turn Phases**:
-   - Every round lasts 15 seconds.
-   - All players choose their next station and lock in.
-   - Server resolves all moves simultaneously.
+2. **Setup and Turns**:
+   - Every player chooses a different starting station during a 30-second setup phase.
+   - The Fugitive chooses and locks a move first, with 30 seconds to decide.
+   - The detective team then chooses moves together within its own 30-second turn, using the Fugitive's movement intel.
+   - Each turn resolves when the acting player/team locks in or the timer expires. Players who do not lock a move stay in place.
 3. **Information**:
    - Pursuers see each other at all times.
    - Fugitive's location is hidden from pursuers.
