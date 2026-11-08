@@ -86,10 +86,13 @@ export interface ChatMessage {
   id: string;
   senderId: string;
   senderName: string;
+  channel: ChatChannel;
   team: Role;
   text: string;
   timestamp: number;
 }
+
+export type ChatChannel = 'room' | 'team';
 
 export interface ClientPlayerState {
   id: string;

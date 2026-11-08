@@ -141,6 +141,18 @@ async function runTests() {
       assert(!engine.submitMove(playerId, 'st-01', 'taxi'), 'A station already chosen during setup cannot be claimed twice');
     }
     assert(engine.submitMove(playerId, stationId, 'taxi'), `${playerId} can select a starting station`);
+    if (playerId === 'p_fugitive') {
+      const fugitiveSetupView = engine.getClientState('p_fugitive');
+      const pursuerSetupView = engine.getClientState('p_pursuer_1');
+      assert(
+        fugitiveSetupView.players.find((player) => player.id === 'p_fugitive')?.currentStationId === stationId,
+        'Fugitive can see their selected starting station during setup'
+      );
+      assert(
+        pursuerSetupView.players.find((player) => player.id === 'p_fugitive')?.currentStationId === null,
+        'Pursuers cannot see the Fugitive starting station during setup'
+      );
+    }
     assert(engine.confirmMove(playerId), `${playerId} can lock their starting station`);
   }
   assert(engine.phase === 'planning' && engine.turnRole === 'fugitive', 'Fugitive starts after all stations are locked');
@@ -395,7 +407,8 @@ async function runTests() {
   revealEngine.phase = 'planning';
   revealEngine.turnRole = 'fugitive';
 
-  for (let moveNumber = 1; moveNumber <= FUGITIVE_LOCATION_REVEAL_INTERVAL; moveNumber++) {
+  let latestRevealedStation: string | null = null;
+  for (let moveNumber = 1; moveNumber <= FUGITIVE_LOCATION_REVEAL_INTERVAL + 2; moveNumber++) {
     if (moveNumber > 1) {
       revealEngine.resolvePhase();
     }
@@ -407,16 +420,26 @@ async function runTests() {
 
     const pursuerState = revealEngine.getClientState(revealPursuer.id);
     const historyRecord = pursuerState.fugitiveHistory[pursuerState.fugitiveHistory.length - 1];
+    const fugitiveHistoryRecord = revealEngine
+      .getClientState(revealFugitive.id)
+      .fugitiveHistory[revealEngine.fugitiveHistory.length - 1];
+    assert(
+      historyRecord.transport === revealEngine.fugitiveHistory[moveNumber - 1].transport &&
+        fugitiveHistoryRecord.transport === historyRecord.transport,
+      `Fugitive move ${moveNumber} transport is included in the public movement log`
+    );
     if (moveNumber < FUGITIVE_LOCATION_REVEAL_INTERVAL) {
       assert(
         historyRecord.revealedStationId === undefined,
         `Fugitive move ${moveNumber} remains hidden`
       );
-    } else {
+    } else if (moveNumber % FUGITIVE_LOCATION_REVEAL_INTERVAL === 0) {
+      latestRevealedStation = destination.to;
       assert(
-        historyRecord.moveNumber === FUGITIVE_LOCATION_REVEAL_INTERVAL &&
-          historyRecord.revealedStationId === destination.to,
-        'Third actual move location is permanently revealed to Pursuers'
+        historyRecord.moveNumber === moveNumber &&
+          historyRecord.revealedStationId === destination.to &&
+          fugitiveHistoryRecord.revealedStationId === destination.to,
+        `Fugitive move ${moveNumber} location is permanently revealed to all players`
       );
       assert(
         pursuerState.players.find((player) => player.id === revealFugitive.id)?.currentStationId === null,
@@ -429,6 +452,11 @@ async function runTests() {
       assert(
         locationRevealNotice.includes(destination.to),
         'All players receive a notification naming the revealed station'
+      );
+    } else {
+      assert(
+        pursuerState.lastKnownFugitiveStationId === latestRevealedStation,
+        `Last-known map station remains marked after unrevealed move ${moveNumber}`
       );
     }
   }
@@ -597,8 +625,11 @@ async function runTests() {
   // Chat from a previous match must not survive the next start.
   room.addChatMessage('host_ai', 'pre-match note');
   assert(room.pursuerChat.length === 1, 'Chat message is stored before the match starts');
+  room.addChatMessage('host_ai', 'room lobby note', 'room');
+  assert(room.roomChat.length === 1, 'Room-wide chat is stored before the match starts');
   assert(room.startGame().success, 'Solo mode starts with one human and AI players');
   assert(room.pursuerChat.length === 0, 'Chat is cleared when a new match starts');
+  assert(room.roomChat.length === 1, 'Lobby room chat remains available after the match starts');
 
   const aiEngine = room.gameEngine!;
   assert(aiEngine.phase === 'setup', 'New match waits for players to choose starting stations');
@@ -640,7 +671,10 @@ async function runTests() {
   // Chat can also be cleared explicitly on restart.
   room.addChatMessage('host_ai', 'post-match note');
   room.clearChat();
-  assert(room.pursuerChat.length === 0, 'Chat history is cleared between matches');
+  assert(
+    room.pursuerChat.length === 0 && room.roomChat.length === 0,
+    'Chat histories are cleared when returning to the lobby'
+  );
 
   aiEngine.handleTimerExpired();
   assert(aiEngine.phase === 'fugitive_decision', 'AI Fugitive match reaches the decision phase');

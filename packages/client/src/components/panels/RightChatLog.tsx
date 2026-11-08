@@ -1,40 +1,43 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ChatMessage,
+  ChatChannel,
   ClientGameState,
   FUGITIVE_LOCATION_REVEAL_INTERVAL,
   TRANSPORT_CONFIG,
   getStationById,
 } from '@fuyardesque/shared';
-import { MessageSquare, History, Send, Lock, Radio } from 'lucide-react';
+import { MessageSquare, History, Send, Lock, Radio, Users } from 'lucide-react';
 
 interface RightChatLogProps {
-  gameState: ClientGameState | null;
-  chatMessages: ChatMessage[];
-  onSendChat: (text: string) => void;
+  gameState: ClientGameState;
+  roomChatMessages: ChatMessage[];
+  teamChatMessages: ChatMessage[];
+  onSendChat: (text: string, channel: ChatChannel) => void;
 }
 
 export const RightChatLog: React.FC<RightChatLogProps> = ({
   gameState,
-  chatMessages,
+  roomChatMessages,
+  teamChatMessages,
   onSendChat,
 }) => {
-  const [activeTab, setActiveTab] = useState<'chat' | 'history'>('chat');
+  const [activeTab, setActiveTab] = useState<'room' | 'team' | 'history'>('room');
   const [inputText, setInputText] = useState('');
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
-  const myRole = gameState?.myRole || 'pursuer';
-  const isFugitive = myRole === 'fugitive';
+  const isFugitive = gameState.myRole === 'fugitive';
+  const messages = activeTab === 'team' ? teamChatMessages : roomChatMessages;
 
   // Auto scroll chat to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages, activeTab]);
+  }, [messages, activeTab]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    onSendChat(inputText);
+    onSendChat(inputText, activeTab === 'team' ? 'team' : 'room');
     setInputText('');
   };
 
@@ -43,21 +46,40 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
       {/* Tabs */}
       <div className="flex border-b border-slate-800">
         <button
-          onClick={() => setActiveTab('chat')}
+          onClick={() => setActiveTab('room')}
           className={`flex-1 py-2.5 text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition ${
-            activeTab === 'chat'
+            activeTab === 'room'
               ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800/30'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <MessageSquare className="w-3.5 h-3.5" />
-          <span>TEAM COMMS</span>
-          {chatMessages.length > 0 && (
+          <Users className="w-3.5 h-3.5" />
+          <span>ROOM</span>
+          {roomChatMessages.length > 0 && (
             <span className="text-[10px] bg-cyan-950 text-cyan-300 px-1 rounded border border-cyan-800/60">
-              {chatMessages.length}
+              {roomChatMessages.length}
             </span>
           )}
         </button>
+
+        {!isFugitive && (
+          <button
+            onClick={() => setActiveTab('team')}
+            className={`flex-1 py-2.5 text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition ${
+              activeTab === 'team'
+                ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>TEAM</span>
+            {teamChatMessages.length > 0 && (
+              <span className="text-[10px] bg-cyan-950 text-cyan-300 px-1 rounded border border-cyan-800/60">
+                {teamChatMessages.length}
+              </span>
+            )}
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('history')}
@@ -74,36 +96,40 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto p-3">
-        {activeTab === 'chat' ? (
+        {activeTab !== 'history' ? (
           <div className="flex flex-col h-full justify-between">
-            {/* Team Channel Header */}
+            {/* Channel Header */}
             <div className="mb-2 bg-dark-950/70 border border-slate-800 rounded px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono">
               <span className="flex items-center gap-1 text-slate-400">
-                <Lock className="w-3 h-3 text-cyan-400" />
+                {activeTab === 'team'
+                  ? <Lock className="w-3 h-3 text-cyan-400" />
+                  : <Users className="w-3 h-3 text-emerald-400" />}
                 Channel:
               </span>
               <span
                 className={`font-bold ${
-                  isFugitive ? 'text-rose-400' : 'text-cyan-400'
+                  activeTab === 'team' ? 'text-cyan-400' : 'text-emerald-300'
                 }`}
               >
-                {isFugitive ? 'ENCRYPTED GHOST LOG' : 'PURSUER SECURE LINK'}
+                {activeTab === 'team' ? 'PURSUER SECURE LINK' : 'ALL PLAYERS'}
               </span>
             </div>
 
             {/* Messages list */}
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-              {chatMessages.length === 0 ? (
+              {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 text-xs font-mono p-4">
                   <Radio className="w-8 h-8 mb-2 opacity-40 text-slate-400" />
                   <p>Channel secure.</p>
                   <p className="text-[10px] text-slate-600 mt-1">
-                    Coordinate tactical movements with your teammates.
+                    {activeTab === 'team'
+                      ? 'Coordinate tactical movements with your pursuer team.'
+                      : 'Send a message to everyone in the room.'}
                   </p>
                 </div>
               ) : (
-                chatMessages.map((msg) => {
-                  const isMe = msg.senderId === gameState?.myPlayerId;
+                messages.map((msg) => {
+                  const isMe = msg.senderId === gameState.myPlayerId;
                   const time = new Date(msg.timestamp).toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -141,7 +167,7 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
             <form onSubmit={handleSubmit} className="mt-3 flex gap-2">
               <input
                 type="text"
-                placeholder={isFugitive ? 'Encrypted transmission...' : 'Coordinate with team...'}
+                placeholder={activeTab === 'team' ? 'Coordinate with pursuers...' : 'Message everyone...'}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 maxLength={150}
@@ -157,10 +183,10 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
             </form>
           </div>
         ) : (
-          /* Mission Log (Fugitive Transportation Method History) */
+          /* Shared Fugitive transport and reveal history */
           <div className="space-y-2">
             <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2">
-              Fugitive Movement Log · Location revealed every {FUGITIVE_LOCATION_REVEAL_INTERVAL} moves
+              Public Fugitive Log · Transport each move, location every {FUGITIVE_LOCATION_REVEAL_INTERVAL} moves
             </div>
 
             {(!gameState?.fugitiveHistory || gameState.fugitiveHistory.length === 0) ? (
@@ -207,7 +233,7 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
                       </span>
                     ) : (
                       <span className="text-slate-500 text-[10px] italic text-right">
-                        [HIDDEN DESTINATION]
+                        LOCATION NOT REVEALED
                       </span>
                     )}
                   </div>

@@ -87,6 +87,36 @@ async function runMultiplayerE2E() {
   assert(lobbyB.players.length === 2, 'Client B successfully joined room with invitation code');
   assert(lobbyB.myPlayerId === clientB.id, 'Joining player receives its stable player id');
 
+  const publicMessagePromiseA = new Promise<any>((resolve) =>
+    clientA.once(SOCKET_EVENTS.CHAT_MESSAGE, resolve)
+  );
+  const publicMessagePromiseB = new Promise<any>((resolve) =>
+    clientB.once(SOCKET_EVENTS.CHAT_MESSAGE, resolve)
+  );
+  clientA.emit(SOCKET_EVENTS.SEND_CHAT, {
+    text: 'Hello everyone in the lobby!',
+    channel: 'room',
+  });
+  const [publicMessageA, publicMessageB] = await Promise.all([
+    publicMessagePromiseA,
+    publicMessagePromiseB,
+  ]);
+  assert(
+    publicMessageA.channel === 'room' &&
+      publicMessageB.text === 'Hello everyone in the lobby!',
+    'Lobby room chat is delivered to every human player, including the Fugitive'
+  );
+
+  const fugitiveTeamChatError = new Promise<any>((resolve) =>
+    clientA.once(SOCKET_EVENTS.ERROR, resolve)
+  );
+  clientA.emit(SOCKET_EVENTS.SEND_CHAT, {
+    text: 'This should not reach pursuers.',
+    channel: 'team',
+  });
+  const teamChatError = await fugitiveTeamChatError;
+  assert(/only available to pursuers/i.test(teamChatError.message), 'Fugitive cannot send messages to the secure pursuer channel');
+
   // Client A adds an AI Pursuer
   const botAddedPromise = new Promise((resolve) => {
     clientA.on(SOCKET_EVENTS.ROOM_STATE, (state) => {
@@ -280,7 +310,10 @@ async function runMultiplayerE2E() {
     clientB.once(SOCKET_EVENTS.CHAT_MESSAGE, resolve);
   });
 
-  clientB.emit(SOCKET_EVENTS.SEND_CHAT, { text: 'Tactical intercept rendezvous at Central Hub!' });
+  clientB.emit(SOCKET_EVENTS.SEND_CHAT, {
+    text: 'Tactical intercept rendezvous at Central Hub!',
+    channel: 'team',
+  });
   const pursuerMsg = await chatPromiseB;
 
   assert(pursuerMsg.text.includes('rendezvous'), 'Pursuer chat message broadcast to Client B');

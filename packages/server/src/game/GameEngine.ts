@@ -530,7 +530,11 @@ export class GameEngine {
         difficulty: p.difficulty,
         color: p.color,
         currentStationId:
-          this.phase === 'setup' ? move?.toStationId || null : visibleStationId,
+          this.phase === 'setup'
+            ? isFugitive && viewerRole === 'pursuer'
+              ? null
+              : move?.toStationId || null
+            : visibleStationId,
         hasLockedMove: move ? move.locked : false,
       };
     });

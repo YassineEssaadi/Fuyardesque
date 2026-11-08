@@ -20,7 +20,8 @@ export const App: React.FC = () => {
     socketId,
     lobbyState,
     gameState,
-    chatMessages,
+    roomChatMessages,
+    teamChatMessages,
     notifications,
     errorMessage,
     createRoom,
@@ -191,6 +192,8 @@ export const App: React.FC = () => {
           onUpdateSettings={updateSettings}
           onStartGame={startGame}
           onLeave={() => window.location.reload()}
+          roomChatMessages={roomChatMessages}
+          onSendChat={(text) => sendChat(text, 'room')}
         />
       ) : (
         /* Active Game Screen */
@@ -221,7 +224,8 @@ export const App: React.FC = () => {
             {/* Right Chat and History Panel */}
             <RightChatLog
               gameState={gameState}
-              chatMessages={chatMessages}
+              roomChatMessages={roomChatMessages}
+              teamChatMessages={teamChatMessages}
               onSendChat={sendChat}
             />
           </div>

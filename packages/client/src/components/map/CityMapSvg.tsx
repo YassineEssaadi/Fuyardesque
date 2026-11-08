@@ -31,7 +31,12 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const pointerStartRef = useRef<{ x: number; y: number; stationId: string | null } | null>(null);
+  const pointerStartRef = useRef<{
+    x: number;
+    y: number;
+    stationId: string | null;
+    pointerId: number;
+  } | null>(null);
   const previousPointerRef = useRef<{ x: number; y: number } | null>(null);
   const hasDraggedRef = useRef(false);
   const hasAutoCenteredRef = useRef(false);
@@ -134,10 +139,11 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
 
   // Pointer capture keeps a pan gesture stable when it reaches the edge of the SVG.
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || pointerStartRef.current) return;
+    e.preventDefault();
     const target = e.target instanceof Element ? e.target.closest('[data-station-id]') : null;
     const stationId = target?.getAttribute('data-station-id') || null;
-    pointerStartRef.current = { x: e.clientX, y: e.clientY, stationId };
+    pointerStartRef.current = { x: e.clientX, y: e.clientY, stationId, pointerId: e.pointerId };
     previousPointerRef.current = { x: e.clientX, y: e.clientY };
     hasDraggedRef.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -146,7 +152,7 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const start = pointerStartRef.current;
     const previous = previousPointerRef.current;
-    if (!start || !previous) return;
+    if (!start || start.pointerId !== e.pointerId || !previous) return;
 
     if (!hasDraggedRef.current && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 5) {
       hasDraggedRef.current = true;
@@ -154,10 +160,20 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
     }
     if (!hasDraggedRef.current) return;
 
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const dx = ((e.clientX - previous.x) * viewBox.width) / rect.width;
-    const dy = ((e.clientY - previous.y) * viewBox.height) / rect.height;
+    const svg = svgRef.current;
+    const screenMatrix = svg?.getScreenCTM();
+    if (!svg || !screenMatrix) return;
+    const inverseMatrix = screenMatrix.inverse();
+    const previousPoint = svg.createSVGPoint();
+    previousPoint.x = previous.x;
+    previousPoint.y = previous.y;
+    const currentPoint = svg.createSVGPoint();
+    currentPoint.x = e.clientX;
+    currentPoint.y = e.clientY;
+    const previousMapPoint = previousPoint.matrixTransform(inverseMatrix);
+    const currentMapPoint = currentPoint.matrixTransform(inverseMatrix);
+    const dx = currentMapPoint.x - previousMapPoint.x;
+    const dy = currentMapPoint.y - previousMapPoint.y;
 
     setViewBox((prev) => ({
       ...prev,
@@ -169,6 +185,7 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
 
   const handlePointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     const start = pointerStartRef.current;
+    if (start && start.pointerId !== e.pointerId) return;
     if (start && !hasDraggedRef.current && start.stationId && !isMoveLocked) {
       if (isSetup) {
         if (!setupTakenStations.has(start.stationId)) onSelectStation(start.stationId);
@@ -621,33 +638,37 @@ export const CityMapSvg: React.FC<CityMapSvgProps> = ({
         )}
 
         {/* Last Known Fugitive Station */}
-        {!gameState?.revelation.active &&
-          gameState?.lastKnownFugitiveStationId &&
-          myRole === 'pursuer' && (
+        {gameState?.lastKnownFugitiveStationId &&
+          myRole === 'pursuer' &&
+          (!gameState.revelation.active ||
+            gameState.revelation.stationId !== gameState.lastKnownFugitiveStationId) && (
             (() => {
               const lastSt = getStationById(gameState.lastKnownFugitiveStationId);
               if (!lastSt) return null;
               return (
-                <g opacity="0.9">
+                <g>
                   <circle
                     cx={lastSt.x}
                     cy={lastSt.y}
-                    r="32"
-                    fill="none"
-                    stroke="#f59e0b"
-                    strokeWidth="3.5"
-                    strokeDasharray="5,4"
+                    r="34"
+                    fill="rgba(127, 29, 29, 0.28)"
+                    stroke="#fb7185"
+                    strokeWidth="4"
+                    strokeDasharray="8,4"
                   />
                   <text
                     x={lastSt.x}
-                    y={lastSt.y - 36}
+                    y={lastSt.y - 40}
                     textAnchor="middle"
-                    fill="#b45309"
-                    fontSize="11"
+                    fill="#ffe4e6"
+                    stroke="#450a0a"
+                    strokeWidth="4"
+                    paintOrder="stroke"
+                    fontSize="12"
                     fontWeight="900"
                     fontFamily="monospace"
                   >
-                    LAST KNOWN
+                    LAST REVEALED
                   </text>
                 </g>
               );

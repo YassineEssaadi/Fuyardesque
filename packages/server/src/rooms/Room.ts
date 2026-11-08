@@ -1,5 +1,6 @@
 import {
   ChatMessage,
+  ChatChannel,
   DEFAULT_SETTINGS,
   Difficulty,
   Player,
@@ -18,7 +19,7 @@ export class Room {
   public settings: RoomSettings;
   public players: Map<string, Player> = new Map();
   public gameEngine: GameEngine | null = null;
-  public fugitiveChat: ChatMessage[] = [];
+  public roomChat: ChatMessage[] = [];
   public pursuerChat: ChatMessage[] = [];
 
   /**
@@ -242,8 +243,8 @@ export class Room {
       this.gameEngine.destroy();
     }
 
-    // Team chat must never carry over into a new match.
-    this.clearChat();
+    // Secure pursuer messages must never carry over into a new match.
+    this.clearTeamChat();
 
     // Initialize GameEngine
     this.gameEngine = new GameEngine(
@@ -272,6 +273,7 @@ export class Room {
             id: `sys_${Date.now()}_${phaseNum}`,
             senderId: 'intel_hq',
             senderName: '★ HQ SURVEILLANCE',
+            channel: 'team',
             team: 'pursuer',
             text: movement
               ? `Round ${phaseNum}: Fugitive boarded a ${transportLabel}. Destination remains unknown.`
@@ -382,15 +384,23 @@ export class Room {
     }, 1200);
   }
 
-  /** Clear both team channels between matches to prevent cross-match leaks. */
+  /** Clear chat histories between matches to prevent cross-match leaks. */
   public clearChat(): void {
-    this.fugitiveChat = [];
+    this.roomChat = [];
+    this.clearTeamChat();
+  }
+
+  public clearTeamChat(): void {
     this.pursuerChat = [];
   }
 
-  public addChatMessage(senderId: string, text: string): ChatMessage | null {
+  public addChatMessage(
+    senderId: string,
+    text: string,
+    channel: ChatChannel = 'team'
+  ): ChatMessage | null {
     const player = this.players.get(senderId);
-    if (!player) return null;
+    if (!player || player.isAi || (channel === 'team' && player.role !== 'pursuer')) return null;
 
     const trimmed = text.trim().slice(0, 200);
     if (!trimmed) return null;
@@ -399,18 +409,19 @@ export class Room {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       senderId: player.id,
       senderName: player.name,
+      channel,
       team: player.role,
       text: trimmed,
       timestamp: Date.now(),
     };
 
-    if (player.role === 'fugitive') {
-      this.fugitiveChat.push(msg);
-      // Emit exclusively to the Fugitive socket
-      const socketId = this.getSocketIdForPlayer(player.id);
-      const socket = socketId ? this.io.sockets.sockets.get(socketId) : undefined;
-      if (socket) {
-        socket.emit(SOCKET_EVENTS.CHAT_MESSAGE, msg);
+    if (channel === 'room') {
+      this.roomChat.push(msg);
+      for (const recipient of this.players.values()) {
+        if (recipient.isAi) continue;
+        const socketId = this.getSocketIdForPlayer(recipient.id);
+        const socket = socketId ? this.io.sockets.sockets.get(socketId) : undefined;
+        socket?.emit(SOCKET_EVENTS.CHAT_MESSAGE, msg);
       }
     } else {
       this.pursuerChat.push(msg);
@@ -433,8 +444,10 @@ export class Room {
     const player = this.players.get(playerId);
     if (!player) return;
 
-    const history = player.role === 'fugitive' ? this.fugitiveChat : this.pursuerChat;
-    socket.emit(SOCKET_EVENTS.CHAT_HISTORY, history);
+    socket.emit(SOCKET_EVENTS.CHAT_HISTORY, {
+      room: this.roomChat,
+      team: player.role === 'pursuer' ? this.pursuerChat : [],
+    });
   }
 
   /**

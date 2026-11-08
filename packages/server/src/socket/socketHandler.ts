@@ -3,6 +3,7 @@ import { RoomManager } from '../rooms/RoomManager';
 import { Room } from '../rooms/Room';
 import {
   Difficulty,
+  ChatChannel,
   EXTENSION_DURATION_OPTIONS,
   GameMode,
   PHASE_DURATION_OPTIONS,
@@ -342,13 +343,27 @@ export function setupSocketHandlers(io: Server, roomManager: RoomManager) {
     // -------------------------------------------------------------
     // TEAM CHAT
     // -------------------------------------------------------------
-    socket.on(SOCKET_EVENTS.SEND_CHAT, (payload?: { text?: string }) => {
-      const context = getContext(socket);
-      if (!context) return;
+    socket.on(
+      SOCKET_EVENTS.SEND_CHAT,
+      (payload?: { text?: string; channel?: ChatChannel }) => {
+        const context = getContext(socket);
+        if (!context) return;
 
-      if (typeof payload?.text !== 'string') return;
-      context.room.addChatMessage(context.playerId, payload.text);
-    });
+        if (typeof payload?.text !== 'string') return;
+        const channel = payload.channel;
+        if (channel !== 'room' && channel !== 'team') {
+          fail(socket, 'Invalid chat channel.');
+          return;
+        }
+        if (channel === 'team' && context.player.role !== 'pursuer') {
+          fail(socket, 'The secure team channel is only available to pursuers.');
+          return;
+        }
+        if (!context.room.addChatMessage(context.playerId, payload.text, channel)) {
+          fail(socket, 'Could not send chat message.');
+        }
+      }
+    );
 
     // -------------------------------------------------------------
     // DISCONNECTION

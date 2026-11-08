@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import {
   ChatMessage,
+  ChatChannel,
   ClientGameState,
   Difficulty,
   Player,
@@ -57,7 +58,8 @@ export function useGameSocket() {
   
   const [lobbyState, setLobbyState] = useState<LobbyState | null>(null);
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [roomChatMessages, setRoomChatMessages] = useState<ChatMessage[]>([]);
+  const [teamChatMessages, setTeamChatMessages] = useState<ChatMessage[]>([]);
   const [notifications, setNotifications] = useState<{ id: string; message: string; type: string }[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -125,17 +127,26 @@ export function useGameSocket() {
     // The host restarted the match: every client returns to the lobby.
     socket.on(SOCKET_EVENTS.RESTART_GAME, () => {
       setGameState(null);
-      setChatMessages([]);
+      setRoomChatMessages([]);
+      setTeamChatMessages([]);
     });
 
     socket.on(SOCKET_EVENTS.CHAT_MESSAGE, (msg: ChatMessage) => {
-      setChatMessages((prev) => [...prev, msg]);
+      if (msg.channel === 'room') {
+        setRoomChatMessages((prev) => [...prev, msg]);
+      } else {
+        setTeamChatMessages((prev) => [...prev, msg]);
+      }
       sound.playClick();
     });
 
-    socket.on(SOCKET_EVENTS.CHAT_HISTORY, (history: ChatMessage[]) => {
-      setChatMessages(history);
-    });
+    socket.on(
+      SOCKET_EVENTS.CHAT_HISTORY,
+      (history: { room: ChatMessage[]; team: ChatMessage[] }) => {
+        setRoomChatMessages(history.room);
+        setTeamChatMessages(history.team);
+      }
+    );
 
     socket.on(SOCKET_EVENTS.NOTIFICATION, ({ message, type }: { message: string; type: string }) => {
       const id = `${Date.now()}_${Math.random()}`;
@@ -162,7 +173,8 @@ export function useGameSocket() {
             activeRoomRef.current = null;
             setLobbyState(null);
             setGameState(null);
-            setChatMessages([]);
+            setRoomChatMessages([]);
+            setTeamChatMessages([]);
           }
         }
 
@@ -180,6 +192,8 @@ export function useGameSocket() {
   const createRoom = useCallback((playerName: string) => {
     playerNameRef.current = playerName;
     activeRoomRef.current = null;
+    setRoomChatMessages([]);
+    setTeamChatMessages([]);
     socketRef.current?.emit(SOCKET_EVENTS.CREATE_ROOM, {
       playerName,
       token: getPlayerToken(),
@@ -190,6 +204,8 @@ export function useGameSocket() {
   const joinRoom = useCallback((roomId: string, playerName: string) => {
     playerNameRef.current = playerName;
     activeRoomRef.current = null;
+    setRoomChatMessages([]);
+    setTeamChatMessages([]);
     socketRef.current?.emit(SOCKET_EVENTS.JOIN_ROOM, {
       roomId,
       playerName,
@@ -251,8 +267,8 @@ export function useGameSocket() {
     socketRef.current?.emit(SOCKET_EVENTS.RESTART_GAME);
   }, []);
 
-  const sendChat = useCallback((text: string) => {
-    socketRef.current?.emit(SOCKET_EVENTS.SEND_CHAT, { text });
+  const sendChat = useCallback((text: string, channel: ChatChannel) => {
+    socketRef.current?.emit(SOCKET_EVENTS.SEND_CHAT, { text, channel });
   }, []);
 
   return {
@@ -260,7 +276,8 @@ export function useGameSocket() {
     socketId,
     lobbyState,
     gameState,
-    chatMessages,
+    roomChatMessages,
+    teamChatMessages,
     notifications,
     errorMessage,
     createRoom,
