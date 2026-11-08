@@ -60,6 +60,7 @@ export function useGameSocket() {
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [roomChatMessages, setRoomChatMessages] = useState<ChatMessage[]>([]);
   const [teamChatMessages, setTeamChatMessages] = useState<ChatMessage[]>([]);
+  const [roomChatReady, setRoomChatReady] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string; message: string; type: string }[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -87,6 +88,7 @@ export function useGameSocket() {
 
       // Automatic rejoin after a transport drop (not on the first connect).
       if (activeRoomRef.current && playerNameRef.current) {
+        setRoomChatReady(false);
         rejoinAttemptRef.current = true;
         socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
           roomId: activeRoomRef.current,
@@ -129,6 +131,7 @@ export function useGameSocket() {
       setGameState(null);
       setRoomChatMessages([]);
       setTeamChatMessages([]);
+      setRoomChatReady(true);
     });
 
     socket.on(SOCKET_EVENTS.CHAT_MESSAGE, (msg: ChatMessage) => {
@@ -136,8 +139,8 @@ export function useGameSocket() {
         setRoomChatMessages((prev) => [...prev, msg]);
       } else {
         setTeamChatMessages((prev) => [...prev, msg]);
+        sound.playClick();
       }
-      sound.playClick();
     });
 
     socket.on(
@@ -145,6 +148,7 @@ export function useGameSocket() {
       (history: { room: ChatMessage[]; team: ChatMessage[] }) => {
         setRoomChatMessages(history.room);
         setTeamChatMessages(history.team);
+        setRoomChatReady(true);
       }
     );
 
@@ -175,6 +179,7 @@ export function useGameSocket() {
             setGameState(null);
             setRoomChatMessages([]);
             setTeamChatMessages([]);
+            setRoomChatReady(false);
           }
         }
 
@@ -194,6 +199,7 @@ export function useGameSocket() {
     activeRoomRef.current = null;
     setRoomChatMessages([]);
     setTeamChatMessages([]);
+    setRoomChatReady(true);
     socketRef.current?.emit(SOCKET_EVENTS.CREATE_ROOM, {
       playerName,
       token: getPlayerToken(),
@@ -206,6 +212,7 @@ export function useGameSocket() {
     activeRoomRef.current = null;
     setRoomChatMessages([]);
     setTeamChatMessages([]);
+    setRoomChatReady(false);
     socketRef.current?.emit(SOCKET_EVENTS.JOIN_ROOM, {
       roomId,
       playerName,
@@ -278,6 +285,7 @@ export function useGameSocket() {
     gameState,
     roomChatMessages,
     teamChatMessages,
+    roomChatReady,
     notifications,
     errorMessage,
     createRoom,

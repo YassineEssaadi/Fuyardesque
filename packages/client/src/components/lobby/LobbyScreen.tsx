@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Difficulty,
-  ChatMessage,
   EXTENSION_DURATION_OPTIONS,
   PHASE_DURATION_OPTIONS,
   REVEAL_DURATION_OPTIONS,
@@ -11,7 +10,6 @@ import {
   SURVIVAL_DURATION_OPTIONS,
 } from '@fuyardesque/shared';
 import { LobbyState } from '../../hooks/useGameSocket';
-import { RoomChatPanel } from './RoomChatPanel';
 import {
   Copy,
   Check,
@@ -46,8 +44,6 @@ interface LobbyScreenProps {
   onUpdateSettings: (settings: Partial<RoomSettings>) => void;
   onStartGame: () => void;
   onLeave: () => void;
-  roomChatMessages: ChatMessage[];
-  onSendChat: (text: string) => void;
 }
 
 export const LobbyScreen: React.FC<LobbyScreenProps> = ({
@@ -60,8 +56,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   onUpdateSettings,
   onStartGame,
   onLeave,
-  roomChatMessages,
-  onSendChat,
 }) => {
   const [copied, setCopied] = useState(false);
   const [selectedBotRole, setSelectedBotRole] = useState<Role>('pursuer');
@@ -91,7 +85,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-dark-950 text-slate-100 flex flex-col p-4 md:p-8 select-none">
+    <div className="h-full min-h-0 overflow-y-auto bg-dark-950 text-slate-100 flex flex-col p-4 md:p-8 select-none">
       {/* Top Header */}
       <div className="max-w-5xl w-full mx-auto flex items-center justify-between mb-6">
         <button
@@ -298,11 +292,6 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
 
         {/* Right Col: Match Configuration & Start Button */}
         <div className="space-y-5">
-          <RoomChatPanel
-            messages={roomChatMessages}
-            myPlayerId={myPlayerId}
-            onSendChat={onSendChat}
-          />
           <div className="bg-dark-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
             <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3">
               <Settings className="w-4 h-4 text-cyan-400" />

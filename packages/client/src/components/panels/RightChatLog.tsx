@@ -7,27 +7,27 @@ import {
   TRANSPORT_CONFIG,
   getStationById,
 } from '@fuyardesque/shared';
-import { MessageSquare, History, Send, Lock, Radio, Users } from 'lucide-react';
+import { MessageSquare, History, Send, Lock, Radio } from 'lucide-react';
 
 interface RightChatLogProps {
   gameState: ClientGameState;
-  roomChatMessages: ChatMessage[];
   teamChatMessages: ChatMessage[];
   onSendChat: (text: string, channel: ChatChannel) => void;
 }
 
 export const RightChatLog: React.FC<RightChatLogProps> = ({
   gameState,
-  roomChatMessages,
   teamChatMessages,
   onSendChat,
 }) => {
-  const [activeTab, setActiveTab] = useState<'room' | 'team' | 'history'>('room');
+  const [activeTab, setActiveTab] = useState<'team' | 'history'>(
+    gameState.myRole === 'pursuer' ? 'team' : 'history'
+  );
   const [inputText, setInputText] = useState('');
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   const isFugitive = gameState.myRole === 'fugitive';
-  const messages = activeTab === 'team' ? teamChatMessages : roomChatMessages;
+  const messages = teamChatMessages;
 
   // Auto scroll chat to bottom
   useEffect(() => {
@@ -37,7 +37,7 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    onSendChat(inputText, activeTab === 'team' ? 'team' : 'room');
+    onSendChat(inputText, 'team');
     setInputText('');
   };
 
@@ -45,23 +45,6 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
     <aside className="w-full md:w-64 lg:w-80 h-44 md:h-full shrink-0 bg-dark-900/80 backdrop-blur-md border-t md:border-t-0 md:border-l border-slate-800 flex flex-col overflow-hidden select-none">
       {/* Tabs */}
       <div className="flex border-b border-slate-800">
-        <button
-          onClick={() => setActiveTab('room')}
-          className={`flex-1 py-2.5 text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition ${
-            activeTab === 'room'
-              ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800/30'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" />
-          <span>ROOM</span>
-          {roomChatMessages.length > 0 && (
-            <span className="text-[10px] bg-cyan-950 text-cyan-300 px-1 rounded border border-cyan-800/60">
-              {roomChatMessages.length}
-            </span>
-          )}
-        </button>
-
         {!isFugitive && (
           <button
             onClick={() => setActiveTab('team')}
@@ -101,17 +84,15 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
             {/* Channel Header */}
             <div className="mb-2 bg-dark-950/70 border border-slate-800 rounded px-2.5 py-1.5 flex items-center justify-between text-[10px] font-mono">
               <span className="flex items-center gap-1 text-slate-400">
-                {activeTab === 'team'
-                  ? <Lock className="w-3 h-3 text-cyan-400" />
-                  : <Users className="w-3 h-3 text-emerald-400" />}
+                <Lock className="w-3 h-3 text-cyan-400" />
                 Channel:
               </span>
               <span
                 className={`font-bold ${
-                  activeTab === 'team' ? 'text-cyan-400' : 'text-emerald-300'
+                  'text-cyan-400'
                 }`}
               >
-                {activeTab === 'team' ? 'PURSUER SECURE LINK' : 'ALL PLAYERS'}
+                PURSUER SECURE LINK
               </span>
             </div>
 
@@ -122,9 +103,7 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
                   <Radio className="w-8 h-8 mb-2 opacity-40 text-slate-400" />
                   <p>Channel secure.</p>
                   <p className="text-[10px] text-slate-600 mt-1">
-                    {activeTab === 'team'
-                      ? 'Coordinate tactical movements with your pursuer team.'
-                      : 'Send a message to everyone in the room.'}
+                    Coordinate tactical movements with your pursuer team.
                   </p>
                 </div>
               ) : (
@@ -167,7 +146,7 @@ export const RightChatLog: React.FC<RightChatLogProps> = ({
             <form onSubmit={handleSubmit} className="mt-3 flex gap-2">
               <input
                 type="text"
-                placeholder={activeTab === 'team' ? 'Coordinate with pursuers...' : 'Message everyone...'}
+                placeholder="Coordinate with pursuers..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 maxLength={150}

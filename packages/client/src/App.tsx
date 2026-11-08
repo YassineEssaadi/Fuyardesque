@@ -3,6 +3,7 @@ import { useGameSocket } from './hooks/useGameSocket';
 import { TransportType, Role, getAvailableTransports } from '@fuyardesque/shared';
 import { MainMenu } from './components/menu/MainMenu';
 import { LobbyScreen } from './components/lobby/LobbyScreen';
+import { RoomChatPanel } from './components/lobby/RoomChatPanel';
 import { TopNav } from './components/hud/TopNav';
 import { LeftRoster } from './components/panels/LeftRoster';
 import { RightChatLog } from './components/panels/RightChatLog';
@@ -22,6 +23,7 @@ export const App: React.FC = () => {
     gameState,
     roomChatMessages,
     teamChatMessages,
+    roomChatReady,
     notifications,
     errorMessage,
     createRoom,
@@ -192,8 +194,6 @@ export const App: React.FC = () => {
           onUpdateSettings={updateSettings}
           onStartGame={startGame}
           onLeave={() => window.location.reload()}
-          roomChatMessages={roomChatMessages}
-          onSendChat={(text) => sendChat(text, 'room')}
         />
       ) : (
         /* Active Game Screen */
@@ -224,7 +224,6 @@ export const App: React.FC = () => {
             {/* Right Chat and History Panel */}
             <RightChatLog
               gameState={gameState}
-              roomChatMessages={roomChatMessages}
               teamChatMessages={teamChatMessages}
               onSendChat={sendChat}
             />
@@ -252,6 +251,15 @@ export const App: React.FC = () => {
             onRestart={restartGame}
           />
         </div>
+      )}
+
+      {lobbyState && (
+        <RoomChatPanel
+          messages={roomChatMessages}
+          myPlayerId={myPlayerId}
+          historyReady={roomChatReady}
+          onSendChat={(text) => sendChat(text, 'room')}
+        />
       )}
 
       {/* How To Play Modal */}
