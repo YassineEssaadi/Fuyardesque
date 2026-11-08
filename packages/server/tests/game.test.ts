@@ -382,6 +382,17 @@ async function runTests() {
   assert(engine.phase === 'game_over', 'Game transitions to game_over on capture');
   assert(engine.winner === 'pursuer', 'Pursuers win on capture');
   assert(engine.winReason === 'captured', 'Win reason is "captured"');
+  const captureState = engine.getClientState('p_pursuer_1');
+  assert(
+    captureState.players
+      .filter(
+        (player) =>
+          player.role === 'pursuer' &&
+          player.currentStationId === captureState.captureStationId
+      )
+      .some((player) => player.id === 'p_pursuer_1'),
+    'Game-over state identifies the pursuer who caught the Fugitive'
+  );
 
   // Every third actual Fugitive move is disclosed, independent of phase count.
   console.log('\n[Suite 6: Move-Count Location Revelations]');

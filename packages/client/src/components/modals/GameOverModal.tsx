@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { ClientGameState, getStationById } from '@fuyardesque/shared';
 import confetti from 'canvas-confetti';
-import { Trophy, Skull, RotateCcw, Crosshair, Users, Timer } from 'lucide-react';
+import { Trophy, Skull, RotateCcw, Crosshair, Users, Timer, Shield } from 'lucide-react';
 
 interface GameOverModalProps {
   gameState: ClientGameState | null;
@@ -34,6 +34,14 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({ gameState, onResta
   const captureStation = gameState.captureStationId
     ? getStationById(gameState.captureStationId)
     : null;
+  const capturingPursuers =
+    gameState.winReason === 'captured' && gameState.captureStationId
+      ? gameState.players.filter(
+          (player) =>
+            player.role === 'pursuer' &&
+            player.currentStationId === gameState.captureStationId
+        )
+      : [];
 
   const getReasonText = () => {
     switch (gameState.winReason) {
@@ -124,6 +132,18 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({ gameState, onResta
               </span>
               <span className="font-bold text-red-400">
                 {captureStation.name} ({captureStation.id})
+              </span>
+            </div>
+          )}
+
+          {capturingPursuers.length > 0 && (
+            <div className="flex items-start justify-between gap-3 text-slate-400">
+              <span className="flex shrink-0 items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-cyan-400" />
+                Caught by:
+              </span>
+              <span className="text-right font-bold text-cyan-300">
+                {capturingPursuers.map((player) => player.name).join(', ')}
               </span>
             </div>
           )}
