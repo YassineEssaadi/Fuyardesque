@@ -1,0 +1,577 @@
+FUYARDESQUE — MASTER DEVELOPMENT PROMPT
+ROLE AND OBJECTIVE
+You are a senior full-stack game developer, software architect, multiplayer networking engineer, UI/UX designer, and game designer.
+Your task is to design and develop a complete, playable browser-based multiplayer strategy game called FUYARDESQUE.
+FUYARDESQUE is an original hidden-movement pursuit game inspired by the general concept of Scotland Yard, but it must have its own mechanics, visual identity, map, interface, and gameplay experience.
+This is not a request for a static prototype or a UI mockup.
+The final result must be a functional web application with working game mechanics, real-time multiplayer communication, private rooms, AI-controlled players, and a complete game loop.
+Work progressively, test your implementation, and fix errors before considering a feature complete.
+PART 1 — GAME CONCEPT
+1.1 Core Gameplay
+FUYARDESQUE is a multiplayer urban pursuit strategy game.
+There are two types of players:
+The Fugitive
+One player takes the role of the Fugitive.
+Their objective is to survive for 8 minutes and 30 seconds.
+They move around a fictional city using three transportation methods.
+Their exact position is hidden from the Pursuers.
+Their position is revealed periodically according to the game settings.
+The Pursuers
+All remaining players become Pursuers.
+Their objective is to locate and capture the Fugitive.
+They can see each other's positions at all times.
+They can communicate through a shared team chat.
+They have unlimited access to transportation tickets.
+They must cooperate and anticipate the Fugitive's movements.
+The game must support:
+Human players.
+AI-controlled players.
+Mixed human and AI matches.
+1.2 Game Configuration
+Initial default settings:
+Setting
+Value
+Minimum players
+2
+Maximum players
+8
+Fugitive count
+1
+Pursuer count
+All remaining players
+Initial survival time
+8 minutes 30 seconds
+Optional extension
+5 minutes
+Transportation
+Taxi, Bus, Metro
+Movement
+Simultaneous
+Pursuer tickets
+Unlimited
+Fugitive tickets
+Unlimited by default
+Game map
+Fictional editable city
+Reveal system
+Periodic
+Game modes
+Solo, Multiplayer, Mixed
+The maximum player count must be configurable in the code.
+Do not implement unnecessary ticket-management systems in the initial version.
+PART 2 — MAP AND TRANSPORTATION SYSTEM
+2.1 City Map
+Create an original fictional city map specifically designed for FUYARDESQUE.
+The map must be attractive, readable, and strategically interesting.
+IMPORTANT:
+Do not depend on AI-generated city images.
+Do not use a static image as the entire playable map.
+Build the map using SVG, HTML, CSS, and JavaScript.
+The map must be interactive.
+Stations and transportation connections must be represented as actual game data.
+Separate map data from gameplay logic.
+The initial city should contain approximately 40–60 interconnected stations.
+Include:
+Different urban districts.
+Main streets.
+Smaller roads.
+Parks or open spaces.
+Commercial districts.
+Residential areas.
+Central transportation hubs.
+Several important junctions.
+The map should feel like a real urban environment while remaining an original fictional creation.
+2.2 Map Architecture
+Represent the city as a graph.
+Each station must contain:
+Unique ID.
+Display name.
+X coordinate.
+Y coordinate.
+District.
+Available transportation connections.
+Each connection must contain:
+Starting station.
+Destination station.
+Transportation type.
+Optional visual properties.
+Example conceptual structure:
+{"stations": [{"id": "station_01","name": "Central Square","district": "Downtown","x": 250,"y": 180}],"connections": [{"from": "station_01","to": "station_02","transport": "taxi"}]}
+This is an illustrative structure. Implement a proper TypeScript schema.
+Ensure that:
+The transportation network is connected.
+Every station has at least one valid connection.
+No invalid destinations can be selected.
+Routes are visually distinguishable.
+The network is balanced and provides meaningful strategic choices.
+2.3 Transportation Types
+Implement exactly three transportation methods.
+TAXI
+Yellow visual identity.
+Relatively dense network.
+Short-distance connections.
+High flexibility.
+BUS
+Blue visual identity.
+Medium-density network.
+Intermediate-distance connections.
+METRO
+Green visual identity.
+Limited network.
+Longer-distance connections.
+Important strategic connections between distant districts.
+Transportation types must influence which stations are accessible.
+The transportation network must be designed manually for the first version. Do not introduce random map generation yet.
+Keep the architecture compatible with future map generation and custom map editing.
+2.4 Map Interaction
+Players must be able to:
+Click their current station.
+View available destinations.
+Select a transportation method.
+Select a valid destination.
+Confirm their movement.
+Highlight available destinations according to the selected transportation method.
+Use different line colors, station markers, and visual feedback.
+The map should support zooming and panning without breaking the gameplay interface.
+PART 3 — MOVEMENT AND GAME LOOP
+3.1 Simultaneous Movement
+All players move simultaneously.
+Implement a configurable movement phase.
+Suggested default: 15 seconds per phase.
+Allow the host to configure the duration.
+Possible values should include:
+10 seconds.
+15 seconds.
+20 seconds.
+Custom duration.
+Each phase must follow this sequence:
+Phase 1 — Planning
+All players select their next destination.
+Players can see their available legal moves.
+Other players cannot see their opponents' pending destinations.
+Phase 2 — Confirmation
+Players confirm their selected movement.
+Once confirmed, their movement is locked.
+They cannot change it after confirmation.
+Phase 3 — Resolution
+When all players have confirmed, or when the phase timer expires, the server resolves the movements.
+All confirmed movements are processed together.
+Players who have not confirmed remain at their current positions.
+Phase 4 — Detection
+Check whether the Fugitive has been captured.
+Check whether a position reveal is scheduled.
+Update the information available to each player.
+Phase 5 — Next phase
+Begin the next movement phase.
+The survival timer must run independently of the movement-phase timer.
+A player must never be able to move twice during the same phase.
+3.2 Movement Validation
+All movement validation must happen on the backend.
+The server must verify:
+The player is part of the active match.
+The selected destination exists.
+The selected transportation method connects the current station to the destination.
+The movement is submitted during the correct phase.
+The player has not already locked their movement.
+Never trust client-side movement validation alone.
+3.3 Collision and Capture Rules
+Implement the following default capture rule:
+If the Fugitive and at least one Pursuer occupy the same station after movement resolution, the Fugitive is captured.
+Capture is checked after all simultaneous movements have been resolved.
+If several Pursuers reach the Fugitive's station simultaneously, capture still occurs.
+Multiple Pursuers may occupy the same station.
+Do not consider crossing paths or exchanging positions alone sufficient for capture.
+The Fugitive must never be allowed to finish a movement on a station occupied by a Pursuer without triggering capture.
+All capture decisions must be server-authoritative.
+PART 4 — HIDDEN INFORMATION AND REVELATIONS
+This is one of the most important systems in FUYARDESQUE.
+4.1 Visibility Rules
+The Fugitive:
+Always sees their own position.
+Sees all Pursuers.
+Can see their movement history.
+The Pursuers:
+Always see their own positions.
+Always see the positions of all other Pursuers.
+Cannot directly see the Fugitive's current position.
+Can see the Fugitive's previously revealed position.
+Can receive information about the Fugitive's transportation method without receiving the destination.
+4.2 Position Revelation
+Implement a configurable position-revelation system.
+Initial suggested defaults:
+Reveal every 90 seconds.
+Display the Fugitive's exact position for 5 seconds.
+Both values must be configurable.
+During a revelation:
+The Fugitive's current station becomes visible to all Pursuers.
+A clear visual effect highlights the revealed position.
+The revelation is synchronized across all connected players.
+After the revelation expires, the Fugitive becomes hidden again.
+The server must never send the Fugitive's live position to Pursuer clients outside an authorized reveal.
+This is a strict security requirement.
+4.3 Movement History
+Pursuers should be able to see:
+The last known Fugitive position.
+The last known transportation method.
+The timestamp or game phase of the information.
+Do not expose the hidden destination.
+The history must not accidentally reveal the Fugitive's current position through event payloads or browser data.
+PART 5 — WIN CONDITIONS AND TIMER
+5.1 Initial Survival Period
+The Fugitive receives 8 minutes and 30 seconds to survive.
+The countdown must:
+Be synchronized by the server.
+Continue independently of movement phases.
+Be displayed prominently.
+Never depend on the client's local clock for authoritative game decisions.
+5.2 Capture
+If the Pursuers capture the Fugitive:
+The match immediately ends.
+Pursuers win.
+Display a victory screen.
+Show the capture location.
+Display the players' results.
+5.3 Expiration of Initial Timer
+If the Fugitive survives for 8 minutes and 30 seconds:
+Display a special decision screen to the Fugitive.
+Two choices:
+OPTION A — END THE GAME
+The Fugitive immediately wins.
+The match ends.
+Show the victory screen.
+OPTION B — GIVE THE PURSUERS ANOTHER CHANCE
+Add exactly 5 minutes.
+The game continues.
+The Fugitive remains the Fugitive.
+The Pursuers continue trying to capture them.
+The decision belongs exclusively to the Fugitive.
+The extension can only be used once.
+5.4 Final Expiration
+If the Fugitive survives the additional 5 minutes:
+The Fugitive automatically wins.
+The match ends.
+The maximum survival duration is therefore 13 minutes and 30 seconds.
+PART 6 — GAME MODES
+Implement three game modes.
+6.1 Solo Mode
+A single human player can play against AI opponents.
+Support:
+Playing as the Fugitive.
+Playing as a Pursuer.
+The remaining roles must be filled by AI players.
+6.2 Private Multiplayer
+Players can create private rooms.
+The room creator becomes the host.
+The system must generate a unique invitation code.
+Players can join using that code.
+The lobby must display:
+Player names.
+Connection status.
+Ready status.
+Assigned or pending roles.
+Number of available player slots.
+AI player slots.
+The host can:
+Add AI opponents.
+Remove AI opponents.
+Configure the match.
+Start the match.
+Change the game settings before starting.
+The host must not be able to modify secret information to gain an unfair advantage.
+6.3 Mixed Matches
+Allow human and AI players to participate in the same match.
+For example:
+1 human Fugitive + 3 AI Pursuers.
+1 AI Fugitive + 3 human Pursuers.
+1 human Fugitive + 2 human Pursuers + 2 AI Pursuers.
+The role assignment system must support these combinations.
+PART 7 — AI OPPONENTS
+Implement three AI difficulty levels.
+EASY
+Uses simple movement strategies.
+Makes occasional inefficient decisions.
+Does not consistently predict the opponent.
+Suitable for beginners.
+NORMAL
+Evaluates available destinations.
+Uses the last revealed position.
+Attempts to intercept likely routes.
+Coordinates with other AI Pursuers when possible.
+HARD
+Evaluates multiple possible movement paths.
+Attempts to predict the Fugitive's future position.
+Uses the transportation network strategically.
+Coordinates with other Pursuers.
+Avoids unnecessary movements.
+AI INFORMATION SECURITY
+This is mandatory.
+AI Pursuers must receive exactly the same information as human Pursuers.
+They must not have access to:
+The Fugitive's current hidden position.
+Hidden destination selections.
+Internal server game state.
+Information that has not been revealed.
+AI Fugitive players may access their own position and the visible positions of Pursuers.
+Do not implement AI by giving it privileged access to the server's complete game state.
+Use a role-specific information layer.
+PART 8 — CHAT SYSTEM
+Implement real-time communication.
+Pursuer Chat
+Shared by all Pursuers.
+Visible only to Pursuers.
+Supports real-time text messages.
+Displays player names and timestamps.
+Fugitive Chat
+Private to the Fugitive.
+May remain available even when the Fugitive is the only player in that team.
+The chat must:
+Update instantly.
+Be synchronized across clients.
+Be separated by team.
+Prevent players from accessing the opposing team's messages.
+Add basic message-length limits and input validation.
+PART 9 — USER INTERFACE AND VISUAL IDENTITY
+9.1 Overall Style
+Create a modern, polished, dark-themed strategy game interface.
+Visual inspiration:
+Urban surveillance systems.
+Tactical strategy games.
+Modern detective interfaces.
+Minimalist premium gaming dashboards.
+Do not copy existing game interfaces.
+Use a distinctive identity for FUYARDESQUE.
+Suggested palette:
+Dark navy backgrounds.
+Charcoal panels.
+Electric blue highlights.
+Yellow taxi routes.
+Blue bus routes.
+Green metro routes.
+Red alerts and capture notifications.
+Use readable typography and consistent spacing.
+9.2 Main Menu
+Include:
+FUYARDESQUE logo.
+Play Solo.
+Create Private Room.
+Join Room.
+Settings.
+How to Play.
+9.3 Lobby
+Include:
+Room invitation code.
+Copy invitation code button.
+Player list.
+Ready indicators.
+AI management.
+Match configuration.
+Start button.
+9.4 Main Gameplay Screen
+The gameplay screen should contain:
+Center
+Large interactive city map.
+Left panel
+Player list.
+Player positions.
+Team information.
+Player status.
+Right panel
+Chat.
+Recent events.
+Movement information.
+Top panel
+Countdown timer.
+Current game phase.
+Role indicator.
+Reveal notifications.
+Bottom panel
+Transportation selection.
+Available destinations.
+Confirm movement button.
+Adapt the layout to smaller screens.
+9.5 Animations
+Include:
+Smooth player movement.
+Station highlighting.
+Route highlighting.
+Countdown animations.
+Revelation effects.
+Capture animations.
+Victory and defeat transitions.
+Animations must never interfere with movement validation or synchronization.
+PART 10 — TECHNICAL ARCHITECTURE
+Use a modern, maintainable technology stack.
+Preferred stack:
+Frontend
+React.
+TypeScript.
+Vite.
+Tailwind CSS.
+SVG-based interactive map.
+Backend
+Node.js.
+TypeScript.
+Express.
+Socket.IO.
+Data
+In-memory room and match state for the initial MVP.
+Keep data models compatible with a future PostgreSQL database.
+Do not introduce a database dependency unless it is genuinely needed for the initial playable version.
+10.1 Real-Time Networking
+Use Socket.IO for:
+Room creation.
+Room joining.
+Player presence.
+Ready status.
+Movement submission.
+Phase synchronization.
+Position updates.
+Chat messages.
+Capture events.
+Match completion.
+The backend must be authoritative.
+The frontend must never independently decide:
+Whether a player has been captured.
+Whether a movement is legal.
+Whether the Fugitive has won.
+Whether the match timer has expired.
+10.2 Security
+Implement:
+Server-side validation.
+Role-based data access.
+Private room authorization.
+Secure invitation-code generation.
+Input validation.
+Protection against unauthorized movement.
+Protection against duplicate movement submissions.
+Prevention of secret-position leakage.
+Never broadcast the full internal game state to every player.
+Create separate server-generated views for:
+Fugitive clients.
+Pursuer clients.
+Do not rely on hiding HTML elements or JavaScript variables to protect secret information.
+10.3 Connection Management
+Handle:
+Disconnections.
+Reconnection attempts.
+Duplicate connections.
+Players leaving the lobby.
+Players disconnecting during a match.
+The server should preserve active match state during temporary disconnections.
+If the host disconnects, define a deterministic host reassignment or allow the server to continue the match independently.
+PART 11 — DEPLOYMENT AND DEVELOPMENT
+The first version must run locally.
+Provide:
+Clear installation instructions.
+Development startup commands.
+Frontend startup command.
+Backend startup command.
+Environment variable examples.
+README documentation.
+The project should be structured so that frontend and backend can later be deployed separately.
+Prepare deployment instructions for:
+A static frontend hosting service.
+A backend hosting service supporting persistent WebSocket connections.
+Do not require the developer to purchase a subscription or enter payment details to test the initial version.
+Do not hardcode localhost URLs into production code.
+Use environment variables for API and Socket.IO server addresses.
+The application must be deployable without requiring the developer to keep their personal computer running.
+PART 12 — TESTING AND QUALITY ASSURANCE
+Do not consider the project complete simply because the interface renders.
+Test the actual game mechanics.
+Required tests:
+A room can be created.
+Another player can join using the invitation code.
+Invalid invitation codes are rejected.
+AI players can be added.
+A match can start.
+The Fugitive is assigned correctly.
+Pursuers can see one another.
+Pursuers cannot access the Fugitive's hidden position.
+Legal transportation connections work.
+Illegal movements are rejected.
+Simultaneous movement works.
+Players cannot move twice in one phase.
+The Fugitive can be captured.
+The 8:30 timer works.
+The optional 5-minute extension works.
+The Fugitive wins after surviving the full duration.
+Periodic revelations work.
+Chat messages reach only the appropriate team.
+Bots obey information restrictions.
+Disconnections do not corrupt the match state.
+Test using at least two separate browser sessions for multiplayer.
+Test role-specific information leakage, not only the visible UI.
+PART 13 — DEVELOPMENT WORKFLOW
+Do not attempt to implement every feature in a single untested operation.
+Follow this development sequence:
+Stage 1: Project foundation
+Inspect the existing workspace.
+Set up the project.
+Establish the frontend/backend architecture.
+Create the basic visual identity.
+Stage 2: Map
+Create the fictional city.
+Implement stations and transportation connections.
+Add interactive map navigation.
+Stage 3: Core gameplay
+Implement player roles.
+Implement legal movement.
+Implement simultaneous phases.
+Implement capture.
+Stage 4: Hidden information
+Implement role-specific visibility.
+Implement position revelations.
+Test information security.
+Stage 5: Multiplayer
+Implement private rooms.
+Implement invitation codes.
+Implement player synchronization.
+Implement chat.
+Stage 6: AI
+Implement the three difficulty levels.
+Implement role-aware AI.
+Test AI behavior.
+Stage 7: Polish
+Improve animations.
+Improve responsive design.
+Add victory and defeat screens.
+Fix bugs.
+Stage 8: Final verification
+Run all tests.
+Test complete matches.
+Fix console errors.
+Verify deployment instructions.
+Update README.
+After each stage:
+Explain what has been implemented.
+List any remaining issues.
+Test the new functionality.
+Fix critical issues before moving forward.
+Do not falsely claim a feature is complete when it has only been visually implemented.
+PART 14 — ACCEPTANCE CRITERIA
+The first release is considered successful only when:
+A player can open the website and create a room.
+Other players can join through an invitation code.
+A complete match can be played from beginning to end.
+Players can select transportation and destinations.
+Movement is simultaneous.
+The Fugitive's position remains hidden from Pursuers except during authorized revelations.
+Pursuers can see one another.
+Players can communicate through their respective team chats.
+AI players can participate in actual matches.
+Capture and survival victory conditions work.
+The initial timer and optional extension work correctly.
+The game works in separate browser sessions.
+The project can run locally using documented commands.
+The architecture is ready for online deployment.
+FINAL INSTRUCTIONS
+Start by inspecting the available development environment and workspace.
+Before writing large amounts of code, produce a concise implementation plan and identify any technical limitations.
+Then begin implementation.
+Make reasonable technical decisions when details are missing, but do not silently change the fundamental gameplay rules described in this document.
+Prioritize a functional, stable, playable game over unnecessary visual complexity.
+Do not replace real functionality with mock data, fake buttons, simulated multiplayer, or decorative elements.
+Do not stop after generating a landing page or a map mockup.
+The ultimate goal is to deliver a complete, playable, polished version of FUYARDESQUE that can be tested locally and deployed online.
+Build the actual game, not just a demonstration of what the game could look like.
