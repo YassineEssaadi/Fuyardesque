@@ -28,7 +28,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   };
 
   const isFugitive = gameState.myRole === 'fugitive';
-  const survivalLow = gameState.survivalTimeRemaining < 90;
+  const survivalLow = !gameState.settings.unlimitedTime && gameState.survivalTimeRemaining < 90;
   const phaseDuration =
     gameState.phase === 'setup'
       ? STARTING_POSITION_DURATION_SECONDS
@@ -77,7 +77,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                 : 'text-slate-100 drop-shadow-[0_0_6px_rgba(255,255,255,0.2)]'
             }`}
           >
-            {formatTime(gameState.survivalTimeRemaining)}
+            {gameState.settings.unlimitedTime ? 'NO LIMIT' : formatTime(gameState.survivalTimeRemaining)}
           </div>
         </div>
 
@@ -91,21 +91,30 @@ export const TopNav: React.FC<TopNavProps> = ({
                   ? `${gameState.turnRole === 'fugitive' ? 'FUGITIVE' : 'DETECTIVES'} TURN · ROUND ${gameState.currentPhaseNumber}`
                   : `ROUND ${gameState.currentPhaseNumber}`}
             </span>
-            <span className="font-bold text-cyan-400">{gameState.phaseTimeRemaining}s</span>
+            <span className="font-bold text-cyan-400">
+              {gameState.settings.unlimitedTime ? 'NO DEADLINE' : `${gameState.phaseTimeRemaining}s`}
+            </span>
           </div>
-          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
-            <div
-              className={`h-full transition-all duration-1000 ${
-                gameState.phaseTimeRemaining <= 5 ? 'bg-red-500' : 'bg-cyan-500'
-              }`}
-              style={{ width: `${phasePercent}%` }}
-            />
-          </div>
+          {!gameState.settings.unlimitedTime && (
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
+              <div
+                className={`h-full transition-all duration-1000 ${
+                  gameState.phaseTimeRemaining <= 5 ? 'bg-red-500' : 'bg-cyan-500'
+                }`}
+                style={{ width: `${phasePercent}%` }}
+              />
+            </div>
+          )}
         </div>
 
         {/* Radar / Revelation Alert Status */}
         <div className="hidden md:flex items-center gap-2 bg-dark-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
-          {gameState.revelation.active ? (
+          {gameState.settings.unlimitedTime ? (
+            <div className="flex items-center gap-1.5 text-slate-400 text-xs font-mono">
+              <Radio className="w-3.5 h-3.5 text-slate-500" />
+              <span>TIMED RADAR OFF</span>
+            </div>
+          ) : gameState.revelation.active ? (
             <div className="flex items-center gap-1.5 text-red-400 animate-pulse text-xs font-mono font-bold">
               <AlertTriangle className="w-4 h-4 text-red-400" />
               <span>RADAR SWEEP ACTIVE!</span>

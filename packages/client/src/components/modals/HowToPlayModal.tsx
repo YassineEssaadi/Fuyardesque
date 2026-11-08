@@ -69,6 +69,17 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ isOpen, onClose 
             </p>
           </div>
 
+          <div className="rounded-lg border border-cyan-900/60 bg-cyan-950/20 p-3">
+            <h3 className="font-mono font-bold text-cyan-200 text-xs mb-1">
+              Unlimited-Time Private Matches
+            </h3>
+            <p className="text-slate-400 text-[11px]">
+              The host can turn off setup, turn, survival, and timed radar limits in the lobby.
+              Every-third-move location reveals still apply. Any human can vote to end the match;
+              votes from connected human players must reach a strict majority. AI players do not vote.
+            </p>
+          </div>
+
           {/* Transportation Networks */}
           <div>
             <h3 className="font-mono font-bold text-slate-100 text-sm mb-2 flex items-center gap-1.5">

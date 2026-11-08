@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   revealInterval: 90, // Reveal every 90 seconds
   revealDuration: 5, // Display for 5 seconds
   gameMode: 'mixed',
+  unlimitedTime: false,
 };
 
 export const PHASE_DURATION_OPTIONS = [30];
@@ -59,6 +60,7 @@ export const SOCKET_EVENTS = {
   GAME_STATE: 'game:state',
   FUGITIVE_DECISION: 'game:fugitive_decision',
   RESTART_GAME: 'game:restart',
+  VOTE_END_MATCH: 'game:vote_end_match',
 
   // Chat
   SEND_CHAT: 'chat:send',

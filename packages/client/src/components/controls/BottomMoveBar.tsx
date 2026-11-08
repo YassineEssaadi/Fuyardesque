@@ -17,6 +17,7 @@ interface BottomMoveBarProps {
   onSelectTransport: (transport: TransportType) => void;
   onSelectDestination: (stationId: string, transport?: TransportType) => void;
   onConfirmMove: () => void;
+  onToggleEndVote: () => void;
 }
 
 export const BottomMoveBar: React.FC<BottomMoveBarProps> = ({
@@ -26,6 +27,7 @@ export const BottomMoveBar: React.FC<BottomMoveBarProps> = ({
   onSelectTransport,
   onSelectDestination,
   onConfirmMove,
+  onToggleEndVote,
 }) => {
   // Hooks must run unconditionally; the early return lives below them.
   const [filterMode, setFilterMode] = useState<'all' | TransportType>('all');
@@ -59,6 +61,20 @@ export const BottomMoveBar: React.FC<BottomMoveBarProps> = ({
 
   const targetStation = selectedDestination ? getStationById(selectedDestination) : null;
   const pendingStation = pendingDest ? getStationById(pendingDest) : null;
+  const voteControl = gameState.settings.unlimitedTime ? (
+    <button
+      onClick={onToggleEndVote}
+      aria-pressed={gameState.hasVotedToEnd}
+      className={`px-3 py-2 rounded-lg border text-[10px] font-mono font-bold transition ${
+        gameState.hasVotedToEnd
+          ? 'bg-amber-950/70 border-amber-500 text-amber-200 hover:bg-amber-900'
+          : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'
+      }`}
+    >
+      {gameState.hasVotedToEnd ? 'WITHDRAW VOTE' : 'VOTE TO END'} ·{' '}
+      {gameState.endVoteCount}/{gameState.endVoteThreshold}
+    </button>
+  ) : null;
 
   if (gameState.phase === 'setup') {
     const selectedCount = gameState.players.filter((player) => player.currentStationId).length;
@@ -72,26 +88,30 @@ export const BottomMoveBar: React.FC<BottomMoveBarProps> = ({
             Each player must choose a different station before the 30-second setup timer ends.
           </div>
         </div>
-        <button
-          disabled={!pendingDest || isLocked}
-          onClick={onConfirmMove}
-          className="px-5 py-2.5 rounded-xl font-mono text-xs font-black flex items-center gap-2 transition bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-        >
-          <Lock className="w-4 h-4" />
-          {isLocked ? 'STARTING STATION LOCKED' : 'CONFIRM STARTING STATION'}
-        </button>
+        <div className="flex items-center gap-2">
+          {voteControl}
+          <button
+            disabled={!pendingDest || isLocked}
+            onClick={onConfirmMove}
+            className="px-5 py-2.5 rounded-xl font-mono text-xs font-black flex items-center gap-2 transition bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+          >
+            <Lock className="w-4 h-4" />
+            {isLocked ? 'STARTING STATION LOCKED' : 'CONFIRM STARTING STATION'}
+          </button>
+        </div>
       </footer>
     );
   }
 
   if (gameState.phase === 'planning' && !isMyTurn) {
     return (
-      <footer className="w-full bg-dark-900/95 backdrop-blur-md border-t border-slate-800 px-4 py-3 flex items-center justify-center select-none z-30 shadow-2xl">
+      <footer className="w-full bg-dark-900/95 backdrop-blur-md border-t border-slate-800 px-4 py-3 flex items-center justify-between gap-3 select-none z-30 shadow-2xl">
         <div className="text-xs font-mono font-bold text-amber-300">
           {gameState.turnRole === 'fugitive'
             ? 'WAITING FOR THE FUGITIVE TO CHOOSE AND MOVE…'
             : 'DETECTIVES: DISCUSS THE FUGITIVE’S MOVE, THEN CHOOSE YOUR STATIONS…'}
         </div>
+        {voteControl}
       </footer>
     );
   }
@@ -226,6 +246,7 @@ export const BottomMoveBar: React.FC<BottomMoveBarProps> = ({
 
       {/* Confirm Movement Button */}
       <div className="flex items-center gap-3">
+        {voteControl}
         {isLocked ? (
           <div className="flex items-center gap-2 bg-emerald-950/90 border border-emerald-500/80 px-4 py-2.5 rounded-xl text-emerald-300 font-mono text-xs font-bold shadow-[0_0_15px_rgba(16,185,129,0.35)] animate-pulse">
             <Lock className="w-4 h-4 text-emerald-400" />

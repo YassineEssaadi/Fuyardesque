@@ -176,6 +176,8 @@ export class RoomManager {
       return;
     }
 
+    room.gameEngine.refreshEndVoteThreshold();
+
     // Game is active: notify remaining players, preserve state
     this.io.to(`room_${roomId}`).emit(SOCKET_EVENTS.NOTIFICATION, {
       message: `Player ${player.name} disconnected.`,

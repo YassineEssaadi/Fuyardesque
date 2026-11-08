@@ -229,6 +229,11 @@ export function setupSocketHandlers(io: Server, roomManager: RoomManager) {
         if (settings.gameMode && VALID_GAME_MODES.includes(settings.gameMode)) {
           context.room.settings.gameMode = settings.gameMode;
         }
+        if (context.room.settings.gameMode === 'solo') {
+          context.room.settings.unlimitedTime = false;
+        } else if (typeof settings.unlimitedTime === 'boolean') {
+          context.room.settings.unlimitedTime = settings.unlimitedTime;
+        }
 
         context.room.broadcastLobbyState();
       }
@@ -281,6 +286,15 @@ export function setupSocketHandlers(io: Server, roomManager: RoomManager) {
       if (!context || !context.room.gameEngine) return;
 
       context.room.gameEngine.confirmMove(context.playerId);
+    });
+
+    socket.on(SOCKET_EVENTS.VOTE_END_MATCH, () => {
+      const context = getContext(socket);
+      if (!context || !context.room.gameEngine) return;
+
+      if (!context.room.gameEngine.toggleEndVote(context.playerId)) {
+        fail(socket, 'You cannot vote to end this match.');
+      }
     });
 
     socket.on(SOCKET_EVENTS.FUGITIVE_DECISION, (payload?: { choice?: 'end' | 'extend' }) => {

@@ -34,6 +34,7 @@ export const App: React.FC = () => {
     selectMove,
     confirmMove,
     fugitiveDecision,
+    toggleEndVote,
     restartGame,
     sendChat,
   } = useGameSocket();
@@ -233,6 +234,7 @@ export const App: React.FC = () => {
             onSelectTransport={handleSelectTransport}
             onSelectDestination={handleSelectStation}
             onConfirmMove={confirmMove}
+            onToggleEndVote={toggleEndVote}
           />
 
           {/* Modals */}

@@ -394,7 +394,7 @@ async function runMultiplayerE2E() {
     playerName: 'DetectivePursuer',
     token: 'test-token-new-room-b-0003',
   });
-  await newRoomPromise;
+  const newRoomState: any = await newRoomPromise;
   ioServer.to(`room_${roomCode}`).emit(SOCKET_EVENTS.NOTIFICATION, {
     message: 'Old-room-only notification',
     type: 'info',
@@ -416,7 +416,109 @@ async function runMultiplayerE2E() {
   clientB2.off(SOCKET_EVENTS.NOTIFICATION, oldRoomNoticeHandler);
   clientB2.off(SOCKET_EVENTS.GAME_STATE, oldRoomStateHandler);
 
+  // Unlimited-time private room and human-majority end vote.
+  const unlimitedSettingsPromise = new Promise<any>((resolve) => {
+    const handler = (state: any) => {
+      if (state.settings.unlimitedTime) {
+        clientB2.off(SOCKET_EVENTS.ROOM_STATE, handler);
+        resolve(state);
+      }
+    };
+    clientB2.on(SOCKET_EVENTS.ROOM_STATE, handler);
+  });
+  clientB2.emit(SOCKET_EVENTS.UPDATE_SETTINGS, { settings: { unlimitedTime: true } });
+  const unlimitedLobby = await unlimitedSettingsPromise;
+  assert(unlimitedLobby.settings.unlimitedTime, 'Host can enable unlimited-time mode in a private room');
+
+  const clientC: ClientSocketType = ClientSocket('http://127.0.0.1:4005', {
+    transports: ['websocket'],
+    forceNew: true,
+  });
+  await new Promise((resolve) => clientC.on('connect', resolve));
+  const secondPlayerLobbyPromise = new Promise<any>((resolve) => {
+    const handler = (state: any) => {
+      if (state.players.length === 2) {
+        clientC.off(SOCKET_EVENTS.ROOM_STATE, handler);
+        resolve(state);
+      }
+    };
+    clientC.on(SOCKET_EVENTS.ROOM_STATE, handler);
+  });
+  clientC.emit(SOCKET_EVENTS.JOIN_ROOM, {
+    roomId: newRoomState.roomId,
+    playerName: 'SecondVoter',
+    token: 'test-token-second-voter-0004',
+  });
+  const secondPlayerLobby = await secondPlayerLobbyPromise;
+
+  const assignedRolesPromise = new Promise<any>((resolve) => {
+    const handler = (state: any) => {
+      if (
+        state.players.some((player: any) => player.id === newRoomState.myPlayerId && player.role === 'fugitive') &&
+        state.players.some((player: any) => player.id === secondPlayerLobby.myPlayerId && player.role === 'pursuer')
+      ) {
+        clientB2.off(SOCKET_EVENTS.ROOM_STATE, handler);
+        resolve(state);
+      }
+    };
+    clientB2.on(SOCKET_EVENTS.ROOM_STATE, handler);
+  });
+  clientB2.emit(SOCKET_EVENTS.ASSIGN_ROLE, {
+    playerId: newRoomState.myPlayerId,
+    role: 'fugitive',
+  });
+  clientB2.emit(SOCKET_EVENTS.ASSIGN_ROLE, {
+    playerId: secondPlayerLobby.myPlayerId,
+    role: 'pursuer',
+  });
+  await assignedRolesPromise;
+
+  const unlimitedStartPromise = new Promise<ClientGameState>((resolve) =>
+    clientB2.once(SOCKET_EVENTS.GAME_STATE, resolve)
+  );
+  clientB2.emit(SOCKET_EVENTS.START_GAME);
+  const unlimitedStartState = await unlimitedStartPromise;
+  assert(
+    unlimitedStartState.phase === 'setup' &&
+      unlimitedStartState.phaseTimeRemaining === 0 &&
+      unlimitedStartState.settings.unlimitedTime,
+    'Unlimited matches begin setup with no timer'
+  );
+
+  const firstVotePromise = new Promise<ClientGameState>((resolve) => {
+    const handler = (state: ClientGameState) => {
+      if (state.endVoteCount === 1 && state.phase === 'setup') {
+        clientB2.off(SOCKET_EVENTS.GAME_STATE, handler);
+        resolve(state);
+      }
+    };
+    clientB2.on(SOCKET_EVENTS.GAME_STATE, handler);
+  });
+  clientB2.emit(SOCKET_EVENTS.VOTE_END_MATCH);
+  const firstVoteState = await firstVotePromise;
+  assert(
+    firstVoteState.endVoteThreshold === 2 && firstVoteState.phase === 'setup',
+    'One of two human votes does not end the match'
+  );
+
+  const voteEndedPromise = new Promise<ClientGameState>((resolve) => {
+    const handler = (state: ClientGameState) => {
+      if (state.phase === 'game_over') {
+        clientB2.off(SOCKET_EVENTS.GAME_STATE, handler);
+        resolve(state);
+      }
+    };
+    clientB2.on(SOCKET_EVENTS.GAME_STATE, handler);
+  });
+  clientC.emit(SOCKET_EVENTS.VOTE_END_MATCH);
+  const voteEndedState = await voteEndedPromise;
+  assert(
+    voteEndedState.winner === null && voteEndedState.winReason === 'vote_ended',
+    'The second human vote ends the match without a role winner'
+  );
+
   // Disconnect & cleanup
+  clientC.disconnect();
   clientB2.disconnect();
   ioServer.close();
   server.close();

@@ -293,7 +293,10 @@ export class Room {
         onTurnChanged: () => this.handleBotMoves(),
         onGameOver: (engine, winner, reason) => {
           this.io.to(`room_${this.id}`).emit(SOCKET_EVENTS.NOTIFICATION, {
-            message: `GAME OVER: ${winner.toUpperCase()}S WIN! (${reason})`,
+            message:
+              reason === 'vote_ended'
+                ? 'GAME OVER: The human players voted to end the match.'
+                : `GAME OVER: ${winner?.toUpperCase()}S WIN! (${reason})`,
             type: 'alert',
           });
           this.broadcastGameState();

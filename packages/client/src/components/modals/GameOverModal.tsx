@@ -12,6 +12,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({ gameState, onResta
   const isGameOver = gameState?.phase === 'game_over';
   const winner = gameState?.winner ?? null;
   const isWinner = isGameOver && winner === gameState?.myRole;
+  const isVoteEnded = gameState?.winReason === 'vote_ended';
+  const isNeutralEnd = isVoteEnded || winner === null;
 
   // NOTE: This hook must run on every render. The early return below previously
   // sat above it, so the component rendered 0 hooks during play and 1 hook at
@@ -43,6 +45,8 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({ gameState, onResta
         return 'The Fugitive survived the complete 8 minutes and 30 seconds without being captured!';
       case 'extension_survived':
         return 'The Fugitive survived both the full survival period and the bonus 5-minute extension!';
+      case 'vote_ended':
+        return 'The human players chose to stop the match by majority vote.';
       default:
         return 'Match completed.';
     }
@@ -56,24 +60,46 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({ gameState, onResta
           className={`w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center border-2 ${
             isWinner
               ? 'bg-emerald-950/80 border-emerald-500 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)]'
-              : 'bg-rose-950/80 border-rose-500 text-rose-400 shadow-[0_0_30px_rgba(244,63,94,0.4)]'
+              : isNeutralEnd
+                ? 'bg-slate-800 border-slate-500 text-slate-300'
+                : 'bg-rose-950/80 border-rose-500 text-rose-400 shadow-[0_0_30px_rgba(244,63,94,0.4)]'
           }`}
         >
-          {isWinner ? <Trophy className="w-10 h-10 animate-bounce" /> : <Skull className="w-10 h-10" />}
+          {isWinner ? (
+              <Trophy className="w-10 h-10 animate-bounce" />
+          ) : isNeutralEnd ? (
+              <Users className="w-10 h-10" />
+          ) : (
+              <Skull className="w-10 h-10" />
+          )}
         </div>
 
         <h2 className="text-3xl font-black font-mono tracking-wider text-slate-100 mb-1">
-          {winner === 'fugitive' ? 'FUGITIVE VICTORY' : 'PURSUERS VICTORY'}
+          {isVoteEnded
+              ? 'MATCH ENDED BY VOTE'
+              : winner === 'fugitive'
+                ? 'FUGITIVE VICTORY'
+                : winner === 'pursuer'
+                  ? 'PURSUERS VICTORY'
+                  : 'MATCH COMPLETE'}
         </h2>
 
         <div
           className={`inline-block text-xs font-mono font-bold px-3 py-1 rounded-full border mb-4 ${
             isWinner
               ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300'
-              : 'bg-rose-950/60 border-rose-500 text-rose-300'
+              : isNeutralEnd
+                ? 'bg-slate-800 border-slate-500 text-slate-300'
+                : 'bg-rose-950/60 border-rose-500 text-rose-300'
           }`}
         >
-          {isWinner ? '★ MISSION ACCOMPLISHED ★' : 'MISSION FAILED'}
+          {isWinner
+            ? '★ MISSION ACCOMPLISHED ★'
+            : isVoteEnded
+              ? 'HUMAN MAJORITY VOTE'
+              : isNeutralEnd
+                ? 'MATCH COMPLETE'
+                : 'MISSION FAILED'}
         </div>
 
         <p className="text-slate-300 text-xs mb-6 px-2 leading-relaxed font-sans">

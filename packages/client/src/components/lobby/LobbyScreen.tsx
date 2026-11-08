@@ -323,22 +323,44 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
               )}
             </div>
 
+            {lobbyState.settings.gameMode !== 'solo' && (
+              <label className="flex items-start gap-2.5 rounded-lg border border-slate-700 bg-dark-950/70 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={lobbyState.settings.unlimitedTime}
+                  disabled={!isHost}
+                  onChange={(event) => onUpdateSettings({ unlimitedTime: event.target.checked })}
+                  className="mt-0.5 accent-cyan-500"
+                />
+                <span>
+                  <span className="block text-xs font-mono font-bold text-slate-200">
+                    Unlimited-time match
+                  </span>
+                  <span className="block mt-1 text-[10px] leading-relaxed text-slate-400">
+                    No setup, turn, survival, or radar timers. Human players can vote to end the
+                    match; a strict majority is required. Every-third-move location reveals remain
+                    enabled.
+                  </span>
+                </span>
+              </label>
+            )}
+
             {/* Phase Duration Setting */}
             <div>
               <label className="text-[11px] font-mono text-slate-400 block mb-1.5">
-                Simultaneous Movement Phase:
+                Turn Duration:
               </label>
               <div className="grid grid-cols-5 gap-1.5">
                 {PHASE_DURATION_OPTIONS.map((dur) => (
                   <button
                     key={dur}
-                    disabled={!isHost}
+                    disabled={!isHost || lobbyState.settings.unlimitedTime}
                     onClick={() => onUpdateSettings({ phaseDuration: dur })}
                     className={`py-1.5 text-xs font-mono rounded-lg border transition ${
                       lobbyState.settings.phaseDuration === dur
                         ? 'bg-cyan-950 border-cyan-500 text-cyan-300 font-bold shadow-[0_0_10px_rgba(6,182,212,0.25)]'
                         : 'bg-dark-950/60 border-slate-800 text-slate-400 hover:bg-slate-800'
-                    } ${!isHost ? 'cursor-default' : 'cursor-pointer'}`}
+                    } ${!isHost || lobbyState.settings.unlimitedTime ? 'cursor-default opacity-60' : 'cursor-pointer'}`}
                   >
                     {dur}s
                   </button>
@@ -351,7 +373,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                 Survival Period:
                 <select
                   value={lobbyState.settings.survivalDuration}
-                  disabled={!isHost}
+                  disabled={!isHost || lobbyState.settings.unlimitedTime}
                   onChange={(event) =>
                     onUpdateSettings({ survivalDuration: Number(event.target.value) })
                   }
@@ -366,7 +388,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                 Optional Extension:
                 <select
                   value={lobbyState.settings.extensionDuration}
-                  disabled={!isHost}
+                  disabled={!isHost || lobbyState.settings.unlimitedTime}
                   onChange={(event) =>
                     onUpdateSettings({ extensionDuration: Number(event.target.value) })
                   }
@@ -381,7 +403,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                 Radar Interval:
                 <select
                   value={lobbyState.settings.revealInterval}
-                  disabled={!isHost}
+                  disabled={!isHost || lobbyState.settings.unlimitedTime}
                   onChange={(event) =>
                     onUpdateSettings({ revealInterval: Number(event.target.value) })
                   }
@@ -396,7 +418,7 @@ export const LobbyScreen: React.FC<LobbyScreenProps> = ({
                 Radar Duration:
                 <select
                   value={lobbyState.settings.revealDuration}
-                  disabled={!isHost}
+                  disabled={!isHost || lobbyState.settings.unlimitedTime}
                   onChange={(event) =>
                     onUpdateSettings({ revealDuration: Number(event.target.value) })
                   }

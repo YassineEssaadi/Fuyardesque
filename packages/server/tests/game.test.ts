@@ -127,6 +127,7 @@ async function runTests() {
   assert(fugitive?.role === 'fugitive', 'Fugitive assigned correctly');
   assert(pursuer1?.role === 'pursuer' && pursuer2?.role === 'pursuer', 'Pursuers assigned correctly');
   assert(engine.phase === 'setup', 'Game opens with a starting-position selection phase');
+  assert(!engine.toggleEndVote('p_fugitive'), 'End voting is unavailable in timed matches');
   assert(fugitive?.currentStationId === '', 'Fugitive is not assigned a random starting station');
   assert(pursuer1?.currentStationId === '', 'Pursuers are not assigned random starting stations');
 
@@ -188,6 +189,100 @@ async function runTests() {
     'Fugitive timeout leaves them at their current station and hands turn to detectives'
   );
   setupTimeoutEngine.destroy();
+
+  const untimedEngine = new GameEngine(
+    'TEST_UNTIMED',
+    { ...DEFAULT_SETTINGS, unlimitedTime: true, survivalDuration: 1, revealInterval: 1 },
+    mockPlayers.map((player) => ({ ...player, currentStationId: '' })),
+    {
+      onStateUpdate: () => {},
+      onPhaseResolved: () => {},
+      onTurnChanged: () => {},
+      onGameOver: () => {},
+      onFugitiveDecisionNeeded: () => {},
+      onNotification: () => {},
+    }
+  );
+  untimedEngine.start();
+  assert(
+    untimedEngine.phase === 'setup' && untimedEngine.phaseTimeRemaining === 0,
+    'Unlimited matches start setup without a countdown'
+  );
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  assert(
+    untimedEngine.phase === 'setup' && untimedEngine.phaseTimeRemaining === 0,
+    'Unlimited setup does not auto-resolve'
+  );
+  untimedEngine.resolvePhase();
+  const revealCountdownBeforeWait = untimedEngine.nextRevealIn;
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  untimedEngine.handleTimerExpired();
+  assert(
+    untimedEngine.phase === 'planning' &&
+      untimedEngine.phaseTimeRemaining === 0 &&
+      untimedEngine.survivalTimeRemaining === 1 &&
+      untimedEngine.nextRevealIn === revealCountdownBeforeWait &&
+      !untimedEngine.revelationActive,
+    'Unlimited turns, survival, and timed radar do not expire'
+  );
+  assert(!untimedEngine.toggleEndVote('p_pursuer_2'), 'AI players cannot vote to end a match');
+  assert(untimedEngine.toggleEndVote('p_fugitive'), 'A connected human can cast an end-match vote');
+  const oneVoteState = untimedEngine.getClientState('p_pursuer_1');
+  assert(
+    oneVoteState.endVoteCount === 1 &&
+      oneVoteState.endVoteThreshold === 2 &&
+      !oneVoteState.hasVotedToEnd,
+    'Vote tally uses a strict majority of connected human players'
+  );
+  assert(untimedEngine.toggleEndVote('p_fugitive'), 'A human can withdraw their vote before the majority');
+  assert(untimedEngine.toggleEndVote('p_fugitive'), 'A human can vote again after withdrawing');
+  assert(untimedEngine.toggleEndVote('p_pursuer_1'), 'The Fugitive counts toward the human majority');
+  assert(
+    untimedEngine.phase === 'game_over' &&
+      untimedEngine.winner === null &&
+      untimedEngine.winReason === 'vote_ended',
+    'A strict human majority ends the match without awarding either role a win'
+  );
+  untimedEngine.destroy();
+
+  const electoratePlayers = [
+    ...mockPlayers.filter((player) => !player.isAi).map((player) => ({ ...player })),
+    {
+      ...mockPlayers[1],
+      id: 'p_pursuer_3',
+      name: 'Detective Three',
+      connected: true,
+    },
+    {
+      ...mockPlayers[1],
+      id: 'p_pursuer_4',
+      name: 'Detective Four',
+      connected: true,
+    },
+  ];
+  const changingElectorateEngine = new GameEngine(
+    'TEST_VOTE_DISCONNECT',
+    { ...DEFAULT_SETTINGS, unlimitedTime: true },
+    electoratePlayers,
+    {
+      onStateUpdate: () => {},
+      onPhaseResolved: () => {},
+      onTurnChanged: () => {},
+      onGameOver: () => {},
+      onFugitiveDecisionNeeded: () => {},
+      onNotification: () => {},
+    }
+  );
+  assert(changingElectorateEngine.toggleEndVote('p_fugitive'), 'First vote is recorded for the connected electorate');
+  assert(changingElectorateEngine.toggleEndVote('p_pursuer_1'), 'Second vote remains below a four-human majority');
+  changingElectorateEngine.players.get('p_pursuer_3')!.connected = false;
+  changingElectorateEngine.refreshEndVoteThreshold();
+  assert(
+    changingElectorateEngine.phase === 'game_over' &&
+      changingElectorateEngine.winReason === 'vote_ended',
+    'A disconnect recalculates the connected-human majority'
+  );
+  changingElectorateEngine.destroy();
 
   // Test 3: ZERO-LEAKAGE SECURITY CHECK
   console.log('\n[Suite 3: Information Security & Role Views]');

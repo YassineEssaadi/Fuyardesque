@@ -46,6 +46,7 @@ export interface RoomSettings {
   revealInterval: number; // default 90s
   revealDuration: number; // default 5s
   gameMode: GameMode;
+  unlimitedTime: boolean;
 }
 
 export type GamePhase = 'lobby' | 'setup' | 'planning' | 'resolving' | 'fugitive_decision' | 'game_over';
@@ -127,6 +128,9 @@ export interface ClientGameState {
   lastFugitiveTransport: TransportType | null;
   fugitiveHistory: FugitivePublicRecord[];
   winner: Role | null;
-  winReason: 'captured' | 'survived' | 'extension_survived' | 'host_ended' | null;
+  winReason: 'captured' | 'survived' | 'extension_survived' | 'host_ended' | 'vote_ended' | null;
   captureStationId: string | null;
+  endVoteCount: number;
+  endVoteThreshold: number;
+  hasVotedToEnd: boolean;
 }

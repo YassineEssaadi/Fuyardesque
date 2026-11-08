@@ -242,6 +242,11 @@ export function useGameSocket() {
     sound.playConfirm();
   }, []);
 
+  const toggleEndVote = useCallback(() => {
+    socketRef.current?.emit(SOCKET_EVENTS.VOTE_END_MATCH);
+    sound.playClick();
+  }, []);
+
   const restartGame = useCallback(() => {
     socketRef.current?.emit(SOCKET_EVENTS.RESTART_GAME);
   }, []);
@@ -269,6 +274,7 @@ export function useGameSocket() {
     selectMove,
     confirmMove,
     fugitiveDecision,
+    toggleEndVote,
     restartGame,
     sendChat,
   };

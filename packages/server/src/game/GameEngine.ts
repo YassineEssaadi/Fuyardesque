@@ -26,7 +26,7 @@ export interface GameEngineCallbacks {
   onStateUpdate: (engine: GameEngine) => void;
   onPhaseResolved: (engine: GameEngine, phaseNumber: number) => void;
   onTurnChanged: (engine: GameEngine) => void;
-  onGameOver: (engine: GameEngine, winner: Role, reason: string) => void;
+  onGameOver: (engine: GameEngine, winner: Role | null, reason: string) => void;
   onFugitiveDecisionNeeded: (engine: GameEngine) => void;
   onNotification: (message: string, type?: 'info' | 'warning' | 'alert') => void;
 }
@@ -54,8 +54,15 @@ export class GameEngine {
   public lastFugitiveTransport: TransportType | null = null;
 
   public winner: Role | null = null;
-  public winReason: 'captured' | 'survived' | 'extension_survived' | 'host_ended' | null = null;
+  public winReason:
+    | 'captured'
+    | 'survived'
+    | 'extension_survived'
+    | 'host_ended'
+    | 'vote_ended'
+    | null = null;
   public captureStationId: string | null = null;
+  private endVotes: Set<string> = new Set();
 
   /** Configurable for tests; production uses FUGITIVE_DECISION_TIMEOUT_MS. */
   public fugitiveDecisionTimeoutMs: number = FUGITIVE_DECISION_TIMEOUT_MS;
@@ -95,6 +102,7 @@ export class GameEngine {
 
   private startMatchTimer() {
     if (this.matchTimerInterval) clearInterval(this.matchTimerInterval);
+    if (this.settings.unlimitedTime) return;
 
     this.matchTimerInterval = setInterval(() => {
       if (this.phase === 'game_over' || this.phase === 'fugitive_decision') {
@@ -125,6 +133,11 @@ export class GameEngine {
 
   private startPhaseTimer() {
     if (this.phaseTimerInterval) clearInterval(this.phaseTimerInterval);
+    if (this.settings.unlimitedTime) {
+      this.phaseTimeRemaining = 0;
+      this.phaseTimerInterval = null;
+      return;
+    }
 
     this.phaseTimeRemaining =
       this.phase === 'setup' ? STARTING_POSITION_DURATION_SECONDS : this.settings.phaseDuration;
@@ -143,6 +156,7 @@ export class GameEngine {
   }
 
   private triggerRevelation() {
+    if (this.settings.unlimitedTime) return;
     const fugitive = Array.from(this.players.values()).find((p) => p.role === 'fugitive');
     if (!fugitive) return;
 
@@ -291,6 +305,51 @@ export class GameEngine {
     this.callbacks.onTurnChanged(this);
   }
 
+  public toggleEndVote(playerId: string): boolean {
+    if (
+      !this.settings.unlimitedTime ||
+      this.phase === 'game_over' ||
+      this.phase === 'lobby'
+    ) {
+      return false;
+    }
+
+    const player = this.players.get(playerId);
+    if (!player || player.isAi || !player.connected) return false;
+
+    if (this.endVotes.has(playerId)) {
+      this.endVotes.delete(playerId);
+    } else {
+      this.endVotes.add(playerId);
+    }
+
+    if (this.hasEndVoteMajority()) {
+      this.endGame(null, 'vote_ended');
+    } else {
+      this.callbacks.onStateUpdate(this);
+    }
+    return true;
+  }
+
+  public refreshEndVoteThreshold() {
+    if (
+      this.settings.unlimitedTime &&
+      this.phase !== 'game_over' &&
+      this.phase !== 'lobby' &&
+      this.hasEndVoteMajority()
+    ) {
+      this.endGame(null, 'vote_ended');
+    }
+  }
+
+  private hasEndVoteMajority(): boolean {
+    const eligibleHumans = Array.from(this.players.values()).filter(
+      (candidate) => !candidate.isAi && candidate.connected
+    );
+    const voteCount = eligibleHumans.filter((candidate) => this.endVotes.has(candidate.id)).length;
+    return voteCount >= Math.floor(eligibleHumans.length / 2) + 1;
+  }
+
   private finishStartingPositionSelection() {
     const claimedStations = new Set(
       Array.from(this.pendingMoves.values()).map((move) => move.toStationId)
@@ -349,6 +408,7 @@ export class GameEngine {
    * admin tooling) can drive the clock without waiting 8 minutes.
    */
   public handleTimerExpired() {
+    if (this.settings.unlimitedTime) return;
     if (!this.extensionUsed) {
       // First timer (8m30s) expired! Give Fugitive the choice
       this.phase = 'fugitive_decision';
@@ -416,7 +476,10 @@ export class GameEngine {
     return false;
   }
 
-  public endGame(winner: Role, reason: 'captured' | 'survived' | 'extension_survived' | 'host_ended') {
+  public endGame(
+    winner: Role | null,
+    reason: 'captured' | 'survived' | 'extension_survived' | 'host_ended' | 'vote_ended'
+  ) {
     this.phase = 'game_over';
     this.winner = winner;
     this.winReason = reason;
@@ -518,6 +581,15 @@ export class GameEngine {
       winner: this.winner,
       winReason: this.winReason,
       captureStationId: this.captureStationId,
+      endVoteCount: Array.from(this.players.values()).filter(
+        (player) => !player.isAi && player.connected && this.endVotes.has(player.id)
+      ).length,
+      endVoteThreshold:
+        Math.floor(
+          Array.from(this.players.values()).filter((player) => !player.isAi && player.connected)
+            .length / 2
+        ) + 1,
+      hasVotedToEnd: this.endVotes.has(playerId),
     };
   }
 }
